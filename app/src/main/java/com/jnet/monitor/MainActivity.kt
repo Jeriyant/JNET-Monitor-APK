@@ -6,6 +6,7 @@ import android.content.Intent
 import android.content.SharedPreferences
 import android.net.Uri
 import android.os.Bundle
+import android.os.Message
 import android.print.PrintAttributes
 import android.print.PrintManager
 import android.text.TextUtils
@@ -72,8 +73,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     @SuppressLint("SetJavaScriptEnabled")
-    private fun setupWebView() {
-        with(binding.webView.settings) {
+    private fun configureWebSettings(webSettings: WebSettings) {
+        with(webSettings) {
             javaScriptEnabled = true
             domStorageEnabled = true
             databaseEnabled = true
@@ -86,11 +87,16 @@ class MainActivity : AppCompatActivity() {
             useWideViewPort = true
             setSupportMultipleWindows(true)
             javaScriptCanOpenWindowsAutomatically = true
-            userAgentString = userAgentString + " JNETMonitorApp/1.0"
+            userAgentString = userAgentString + " JNETMonitorApp/1.3"
         }
+    }
+
+    @SuppressLint("SetJavaScriptEnabled")
+    private fun setupWebView() {
+        configureWebSettings(binding.webView.settings)
 
         // Bridge JavaScript window.print() to Android Native PrintManager
-        binding.webView.addJavascriptInterface(WebPrintInterface(this), JS_PRINT_INTERFACE)
+        binding.webView.addJavascriptInterface(WebPrintInterface(this, binding.webView), JS_PRINT_INTERFACE)
 
         binding.webView.webChromeClient = object : WebChromeClient() {
             override fun onProgressChanged(view: WebView?, newProgress: Int) {
@@ -108,26 +114,48 @@ class MainActivity : AppCompatActivity() {
                     binding.toolbar.subtitle = title
                 }
             }
+
+            // Handle window.open(...) and target="_blank" popups used by Mikhmon / JNET-MONITOR voucher print
+            override fun onCreateWindow(
+                view: WebView?,
+                isDialog: Boolean,
+                isUserGesture: Boolean,
+                resultMsg: Message?
+            ): Boolean {
+                val popupWebView = WebView(this@MainActivity)
+                configureWebSettings(popupWebView.settings)
+
+                popupWebView.addJavascriptInterface(WebPrintInterface(this@MainActivity, popupWebView), JS_PRINT_INTERFACE)
+
+                popupWebView.webChromeClient = object : WebChromeClient() {
+                    override fun onCloseWindow(window: WebView?) {
+                        super.onCloseWindow(window)
+                    }
+                }
+
+                popupWebView.webViewClient = object : WebViewClient() {
+                    override fun shouldOverrideUrlLoading(v: WebView?, request: WebResourceRequest?): Boolean {
+                        val url = request?.url?.toString() ?: return false
+                        return handleUrlLoading(url, v)
+                    }
+
+                    override fun onPageFinished(v: WebView?, url: String?) {
+                        super.onPageFinished(v, url)
+                        injectPrintJavaScript(v)
+                    }
+                }
+
+                val transport = resultMsg?.obj as? WebView.WebViewTransport
+                transport?.webView = popupWebView
+                resultMsg?.sendToTarget()
+                return true
+            }
         }
 
         binding.webView.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
                 val url = request?.url?.toString() ?: return false
-
-                // Handle standard HTTP & HTTPS links inside WebView
-                if (url.startsWith("http://") || url.startsWith("https://")) {
-                    return false
-                }
-
-                // Handle external apps (whatsapp, mailto, tel, intents)
-                return try {
-                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
-                    startActivity(intent)
-                    true
-                } catch (e: Exception) {
-                    Toast.makeText(this@MainActivity, "Tidak dapat membuka tautan: $url", Toast.LENGTH_SHORT).show()
-                    true
-                }
+                return handleUrlLoading(url, view)
             }
 
             override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
@@ -141,7 +169,7 @@ class MainActivity : AppCompatActivity() {
                 binding.swipeRefreshLayout.isRefreshing = false
 
                 // Inject window.print() polyfill so any site's print action triggers native Android printing
-                injectPrintJavaScript()
+                injectPrintJavaScript(view)
             }
 
             override fun onReceivedError(
@@ -158,6 +186,52 @@ class MainActivity : AppCompatActivity() {
                     }
                 }
             }
+        }
+    }
+
+    private fun handleUrlLoading(url: String, targetWebView: WebView?): Boolean {
+        // Standard HTTP & HTTPS -> load inside WebView
+        if (url.startsWith("http://") || url.startsWith("https://")) {
+            return false
+        }
+
+        // Handle Android Intent Scheme (e.g. intent://...#Intent;scheme=quickprinter;package=...;end;)
+        if (url.startsWith("intent://")) {
+            try {
+                val intent = Intent.parseUri(url, Intent.URI_INTENT_SCHEME)
+                if (intent != null) {
+                    val packageManager = packageManager
+                    val info = packageManager.resolveActivity(intent, 0)
+                    if (info != null) {
+                        startActivity(intent)
+                    } else {
+                        // Fallback to market/playstore package if app not installed
+                        val fallbackUrl = intent.getStringExtra("browser_fallback_url")
+                        if (fallbackUrl != null) {
+                            targetWebView?.loadUrl(fallbackUrl)
+                        } else {
+                            val packageName = intent.getPackage()
+                            if (packageName != null) {
+                                startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=$packageName")))
+                            }
+                        }
+                    }
+                    return true
+                }
+            } catch (e: Exception) {
+                Toast.makeText(this, "Gagal memproses tautan cetak: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
+                return true
+            }
+        }
+
+        // Handle external apps & printer schemes (rawbt:, tel:, mailto:, whatsapp:)
+        return try {
+            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+            startActivity(intent)
+            true
+        } catch (e: Exception) {
+            Toast.makeText(this, "Aplikasi pencetak/tautan tidak ditemukan", Toast.LENGTH_SHORT).show()
+            true
         }
     }
 
@@ -184,11 +258,12 @@ class MainActivity : AppCompatActivity() {
     // Chrome-like Printing Subsystem
     // ==========================================
 
-    fun printWebPage() {
+    fun printWebPage(targetWebView: WebView? = binding.webView) {
         try {
+            val wv = targetWebView ?: binding.webView
             val printManager = getSystemService(Context.PRINT_SERVICE) as PrintManager
             val jobName = "${getString(R.string.app_name)} Document_${System.currentTimeMillis()}"
-            val printAdapter = binding.webView.createPrintDocumentAdapter(jobName)
+            val printAdapter = wv.createPrintDocumentAdapter(jobName)
             
             val builder = PrintAttributes.Builder()
             builder.setMediaSize(PrintAttributes.MediaSize.ISO_A4)
@@ -201,7 +276,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun injectPrintJavaScript() {
+    private fun injectPrintJavaScript(targetWebView: WebView? = binding.webView) {
         val js = """
             (function() {
                 if (!window.print || !window.print.isNativeBridge) {
@@ -218,14 +293,14 @@ class MainActivity : AppCompatActivity() {
             })();
         """.trimIndent()
 
-        binding.webView.evaluateJavascript(js, null)
+        targetWebView?.evaluateJavascript(js, null)
     }
 
-    private inner class WebPrintInterface(private val activity: MainActivity) {
+    private inner class WebPrintInterface(private val activity: MainActivity, private val webView: WebView) {
         @JavascriptInterface
         fun print() {
             activity.runOnUiThread {
-                activity.printWebPage()
+                activity.printWebPage(webView)
             }
         }
     }
@@ -246,7 +321,7 @@ class MainActivity : AppCompatActivity() {
                 true
             }
             R.id.action_print -> {
-                printWebPage()
+                printWebPage(binding.webView)
                 true
             }
             R.id.action_settings -> {
@@ -337,7 +412,6 @@ class MainActivity : AppCompatActivity() {
                     val releaseNotes = json.optString("body", "Versi baru JNET-Monitor telah rilis di GitHub.")
                     val releaseHtmlUrl = json.optString("html_url", "https://github.com/Jeriyant/JNET-Monitor-APK/releases")
 
-                    // Search for .apk asset download URL if available
                     var apkDownloadUrl = releaseHtmlUrl
                     val assets = json.optJSONArray("assets")
                     if (assets != null) {
@@ -379,9 +453,9 @@ class MainActivity : AppCompatActivity() {
     private fun getCurrentVersion(): String {
         return try {
             val pInfo = packageManager.getPackageInfo(packageName, 0)
-            pInfo.versionName ?: "1.0.0"
+            pInfo.versionName ?: "1.3.0"
         } catch (e: Exception) {
-            "1.0.0"
+            "1.3.0"
         }
     }
 
