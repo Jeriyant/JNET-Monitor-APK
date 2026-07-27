@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
+import android.content.res.Configuration
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -17,6 +18,7 @@ import android.view.LayoutInflater
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
+import android.view.ViewGroup
 import android.webkit.JavascriptInterface
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceError
@@ -24,6 +26,8 @@ import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.widget.ArrayAdapter
+import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
@@ -31,13 +35,16 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.jnet.monitor.databinding.ActivityMainBinding
+import com.jnet.monitor.databinding.DialogAboutBinding
 import com.jnet.monitor.databinding.DialogSettingsBinding
+import org.json.JSONArray
 import org.json.JSONObject
-import java.io.BufferedReader
-import java.io.InputStreamReader
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLDecoder
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import java.util.concurrent.Executors
 
 class MainActivity : AppCompatActivity() {
@@ -48,11 +55,13 @@ class MainActivity : AppCompatActivity() {
     companion object {
         private const val PREFS_NAME = "JNetMonitorPrefs"
         private const val KEY_DEFAULT_URL = "default_url"
+        private const val KEY_HISTORY_JSON = "browser_history_json"
         private const val FALLBACK_URL = "https://jeriyant.my.id"
         private const val JS_PRINT_INTERFACE = "AndroidPrintInterface"
         private const val GITHUB_RELEASES_API = "https://api.github.com/repos/Jeriyant/JNET-Monitor-APK/releases/latest"
         private const val QUICKPRINTER_PACKAGE = "pe.diegoveloper.printerserverapp"
         private const val RAWBT_PACKAGE = "ru.a402d.rawbtprinter"
+        private const val MAX_HISTORY_ITEMS = 30
     }
 
     private val requestPermissionLauncher = registerForActivityResult(
@@ -113,13 +122,19 @@ class MainActivity : AppCompatActivity() {
             useWideViewPort = false // Match Chrome Mobile Viewport
             setSupportMultipleWindows(true)
             javaScriptCanOpenWindowsAutomatically = true
-            userAgentString = userAgentString + " JNETMonitorApp/2.4"
+            userAgentString = userAgentString + " JNETMonitorApp/2.5"
         }
     }
 
     @SuppressLint("SetJavaScriptEnabled")
     private fun setupWebView() {
         configureWebSettings(binding.webView.settings)
+
+        // Set WebView background color according to Light/Dark Mode
+        val isNight = (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+        val wvBg = if (isNight) ContextCompat.getColor(this, R.color.surface_dark) else ContextCompat.getColor(this, R.color.surface_light)
+        binding.webView.setBackgroundColor(wvBg)
+
         binding.webView.addJavascriptInterface(
             WebAppInterface(this, binding.webView), JS_PRINT_INTERFACE
         )
@@ -139,6 +154,7 @@ class MainActivity : AppCompatActivity() {
             ): Boolean {
                 val popupWebView = WebView(this@MainActivity)
                 configureWebSettings(popupWebView.settings)
+                popupWebView.setBackgroundColor(wvBg)
                 popupWebView.addJavascriptInterface(
                     WebAppInterface(this@MainActivity, popupWebView), JS_PRINT_INTERFACE
                 )
@@ -157,6 +173,7 @@ class MainActivity : AppCompatActivity() {
                     override fun onPageFinished(v: WebView?, url: String?) {
                         super.onPageFinished(v, url)
                         injectBridgeScript(v)
+                        if (url != null) saveToHistory(v?.title ?: url, url)
                         if (isPrintPage(url)) printWebPage(v)
                     }
                 }
@@ -192,6 +209,7 @@ class MainActivity : AppCompatActivity() {
                 super.onPageFinished(view, url)
                 binding.swipeRefreshLayout.isRefreshing = false
                 injectBridgeScript(view)
+                if (url != null) saveToHistory(view?.title ?: url, url)
                 if (isPrintPage(url)) printWebPage(view)
             }
 
@@ -355,7 +373,6 @@ class MainActivity : AppCompatActivity() {
     }
 
     fun launchIntent(url: String, targetWebView: WebView?): Boolean {
-        // Extract raw payload text
         var payload = url
         if (payload.startsWith("intent://")) {
             val hashIdx = payload.indexOf("#Intent;")
@@ -387,7 +404,7 @@ class MainActivity : AppCompatActivity() {
             return true
         } catch (e: Exception) {}
 
-        // Method 2: Direct rawbt: intent to RawBT app (ru.a402d.rawbtprinter)
+        // Method 2: Direct rawbt: intent to RawBT app
         try {
             val intent = Intent(Intent.ACTION_VIEW, Uri.parse("rawbt:$encodedPayload")).apply {
                 setPackage(RAWBT_PACKAGE)
@@ -454,6 +471,120 @@ class MainActivity : AppCompatActivity() {
     }
 
     // ==========================================
+    // History Feature
+    // ==========================================
+
+    data class HistoryItem(val title: String, val url: String, val timestamp: String)
+
+    private fun saveToHistory(title: String, url: String) {
+        if (url.isEmpty() || url.startsWith("about:") || url.startsWith("data:")) return
+        try {
+            val historyJson = prefs.getString(KEY_HISTORY_JSON, "[]") ?: "[]"
+            val array = JSONArray(historyJson)
+            val time = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault()).format(Date())
+
+            // Don't add duplicate if same as most recent
+            if (array.length() > 0) {
+                val lastObj = array.getJSONObject(0)
+                if (lastObj.optString("url") == url) return
+            }
+
+            val newObj = JSONObject().apply {
+                put("title", title.ifEmpty { url })
+                put("url", url)
+                put("time", time)
+            }
+
+            val newArray = JSONArray()
+            newArray.put(newObj)
+            for (i in 0 until minOf(array.length(), MAX_HISTORY_ITEMS - 1)) {
+                newArray.put(array.get(i))
+            }
+
+            prefs.edit().putString(KEY_HISTORY_JSON, newArray.toString()).apply()
+        } catch (e: Exception) {}
+    }
+
+    private fun getHistoryList(): List<HistoryItem> {
+        val list = mutableListOf<HistoryItem>()
+        try {
+            val historyJson = prefs.getString(KEY_HISTORY_JSON, "[]") ?: "[]"
+            val array = JSONArray(historyJson)
+            for (i in 0 until array.length()) {
+                val obj = array.getJSONObject(i)
+                list.add(HistoryItem(
+                    title = obj.optString("title", "Halaman Web"),
+                    url = obj.optString("url", ""),
+                    timestamp = obj.optString("time", "")
+                ))
+            }
+        } catch (e: Exception) {}
+        return list
+    }
+
+    private fun showHistoryDialog() {
+        val historyList = getHistoryList()
+        if (historyList.isEmpty()) {
+            MaterialAlertDialogBuilder(this)
+                .setTitle(getString(R.string.history_title))
+                .setMessage(getString(R.string.history_empty))
+                .setPositiveButton("OK") { d, _ -> d.dismiss() }
+                .show()
+            return
+        }
+
+        val adapter = object : ArrayAdapter<HistoryItem>(this, R.layout.item_history, historyList) {
+            override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
+                val view = convertView ?: LayoutInflater.from(context).inflate(R.layout.item_history, parent, false)
+                val item = getItem(position) ?: return view
+
+                val tvTitle = view.findViewById<TextView>(R.id.tvHistoryTitle)
+                val tvUrl = view.findViewById<TextView>(R.id.tvHistoryUrl)
+                val tvTime = view.findViewById<TextView>(R.id.tvHistoryTime)
+
+                tvTitle.text = item.title
+                tvUrl.text = item.url
+                tvTime.text = item.timestamp
+
+                return view
+            }
+        }
+
+        var dialog: androidx.appcompat.app.AlertDialog? = null
+
+        dialog = MaterialAlertDialogBuilder(this)
+            .setTitle(getString(R.string.history_title))
+            .setAdapter(adapter) { _, which ->
+                val item = historyList[which]
+                loadUrl(item.url)
+                dialog?.dismiss()
+            }
+            .setNeutralButton(getString(R.string.btn_clear_history)) { d, _ ->
+                prefs.edit().remove(KEY_HISTORY_JSON).apply()
+                Toast.makeText(this, getString(R.string.msg_history_cleared), Toast.LENGTH_SHORT).show()
+                d.dismiss()
+            }
+            .setNegativeButton(getString(R.string.btn_cancel)) { d, _ -> d.dismiss() }
+            .create()
+
+        dialog.show()
+    }
+
+    // ==========================================
+    // About Dialog
+    // ==========================================
+
+    private fun showAboutDialog() {
+        val dialogBinding = DialogAboutBinding.inflate(LayoutInflater.from(this))
+        dialogBinding.tvAboutVersion.text = "Versi ${getCurrentVersion()}"
+
+        MaterialAlertDialogBuilder(this)
+            .setView(dialogBinding.root)
+            .setPositiveButton("OK") { d, _ -> d.dismiss() }
+            .show()
+    }
+
+    // ==========================================
     // JavaScript Interface Bridge
     // ==========================================
 
@@ -506,8 +637,10 @@ class MainActivity : AppCompatActivity() {
         return when (item.itemId) {
             R.id.action_reload -> { binding.webView.reload(); true }
             R.id.action_print -> { printWebPage(binding.webView); true }
+            R.id.action_history -> { showHistoryDialog(); true }
             R.id.action_settings -> { showSettingsDialog(); true }
             R.id.action_check_update -> { checkForUpdates(isManual = true); true }
+            R.id.action_about -> { showAboutDialog(); true }
             R.id.action_exit -> { finish(); true }
             else -> super.onOptionsItemSelected(item)
         }
@@ -518,7 +651,19 @@ class MainActivity : AppCompatActivity() {
         val currentUrl = getDefaultUrl()
 
         dialogBinding.etUrl.setText(currentUrl)
-        dialogBinding.tvCurrentUrl.text = "URL Saat Ini: ${binding.webView.url ?: currentUrl}"
+        val activeUrl = binding.webView.url ?: currentUrl
+        dialogBinding.tvCurrentUrl.text = "URL Saat Ini: $activeUrl"
+
+        // "Set ke URL Saat Ini" button functionality
+        dialogBinding.btnSetCurrentUrl.setOnClickListener {
+            val liveUrl = binding.webView.url
+            if (!liveUrl.isNullOrEmpty()) {
+                dialogBinding.etUrl.setText(liveUrl)
+                Toast.makeText(this, "Diisi dengan URL saat ini", Toast.LENGTH_SHORT).show()
+            } else {
+                Toast.makeText(this, "Belum ada halaman yang dimuat", Toast.LENGTH_SHORT).show()
+            }
+        }
 
         val dialog = MaterialAlertDialogBuilder(this)
             .setTitle(getString(R.string.dialog_settings_title))
@@ -552,7 +697,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     // ==========================================
-    // Auto-Update (GitHub Releases)
+    // Auto-Update (GitHub Releases — Force Update)
     // ==========================================
 
     private fun checkForUpdates(isManual: Boolean) {
@@ -603,8 +748,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun getCurrentVersion() = try {
-        packageManager.getPackageInfo(packageName, 0).versionName ?: "2.4.0"
-    } catch (e: Exception) { "2.4.0" }
+        packageManager.getPackageInfo(packageName, 0).versionName ?: "2.5.0"
+    } catch (e: Exception) { "2.5.0" }
 
     private fun cleanVersion(v: String) = v.trim().trimStart('v', 'V')
 
@@ -621,14 +766,19 @@ class MainActivity : AppCompatActivity() {
         return false
     }
 
+    /**
+     * Force Update Dialog: Removed "Nanti Saja" button and set cancelable=false
+     * so user MUST update to continue using the app.
+     */
     private fun showUpdateDialog(ver: String, notes: String, url: String) {
         MaterialAlertDialogBuilder(this)
             .setTitle("${getString(R.string.update_available_title)} (v$ver)")
-            .setMessage("Catatan Rilis:\n\n$notes")
+            .setMessage("Catatan Rilis:\n\n$notes\n\n⚠️ Pembaruan ini Wajib untuk melanjutkan penggunaan aplikasi.")
+            .setCancelable(false)
             .setPositiveButton(getString(R.string.update_btn_download)) { _, _ ->
                 startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                finish()
             }
-            .setNegativeButton(getString(R.string.update_btn_later)) { d, _ -> d.dismiss() }
             .show()
     }
 

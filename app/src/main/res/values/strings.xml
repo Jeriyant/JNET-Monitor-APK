@@ -1,21 +1,22 @@
 <resources>
     <string name="app_name">JNET-MONITOR</string>
-    <string name="toolbar_title">JNET-MONITOR v.2.1</string>
+    <string name="toolbar_title">JNET-MONITOR v.2.5</string>
     
     <!-- Menu Items -->
     <string name="menu_reload">Muat Ulang</string>
     <string name="menu_print">Cetak Halaman</string>
+    <string name="menu_history">Riwayat Browser</string>
     <string name="menu_settings">Pengaturan URL</string>
     <string name="menu_check_update">Cek Pembaruan</string>
+    <string name="menu_about">Tentang Aplikasi</string>
     <string name="menu_exit">Keluar</string>
 
     <!-- Update Strings -->
     <string name="update_checking">Memeriksa pembaruan...</string>
-    <string name="update_available_title">Pembaruan Tersedia!</string>
+    <string name="update_available_title">Pembaruan Wajib Tersedia!</string>
     <string name="update_latest_title">Aplikasi Sudah Terbaru</string>
     <string name="update_latest_msg">Anda menggunakan JNET-MONITOR versi terbaru.</string>
-    <string name="update_btn_download">Unduh Update</string>
-    <string name="update_btn_later">Nanti Saja</string>
+    <string name="update_btn_download">Unduh Update Sekarang</string>
     <string name="update_error">Gagal memeriksa pembaruan. Periksa koneksi internet.</string>
 
     <!-- Settings Dialog -->
@@ -25,8 +26,21 @@
     <string name="btn_save">Simpan &amp; Buka</string>
     <string name="btn_cancel">Batal</string>
     <string name="btn_reset_default">Reset Default</string>
+    <string name="btn_set_current_url">Set ke URL Saat Ini</string>
     <string name="msg_url_saved">URL default berhasil diperbarui!</string>
     <string name="msg_invalid_url">URL tidak valid. Masukkan URL yang benar.</string>
+
+    <!-- History Dialog -->
+    <string name="history_title">Riwayat Browser</string>
+    <string name="history_empty">Belum ada riwayat browser.</string>
+    <string name="btn_clear_history">Hapus Riwayat</string>
+    <string name="msg_history_cleared">Riwayat berhasil dihapus.</string>
+
+    <!-- About Dialog -->
+    <string name="about_title">Tentang JNET-MONITOR</string>
+    <string name="about_creator">Pembuat Aplikasi</string>
+    <string name="about_creator_name">JERIYANT-BARAMCITY</string>
+    <string name="about_desc">Sistem Monitoring Hotspot, Manajemen RouterOS MikroTik &amp; Cetak Voucher Thermal Bluetooth Cepat.</string>
 
     <!-- Print & Web Info -->
     <string name="print_job_title">JNET_Monitor_Print</string>
