@@ -1,10 +1,13 @@
 package com.jnet.monitor
 
+import android.Manifest
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
+import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.os.Message
 import android.print.PrintAttributes
@@ -23,7 +26,9 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.jnet.monitor.databinding.ActivityMainBinding
 import com.jnet.monitor.databinding.DialogSettingsBinding
@@ -48,6 +53,13 @@ class MainActivity : AppCompatActivity() {
         private const val QUICKPRINTER_PACKAGE = "pe.diegoveloper.printerserverapp"
     }
 
+    // Permission launcher for Bluetooth & Storage permissions
+    private val requestPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { _ ->
+        // Permissions handled
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
@@ -59,6 +71,7 @@ class MainActivity : AppCompatActivity() {
         setupWebView()
         setupSwipeRefresh()
         setupBackPressedHandler()
+        checkAndRequestPermissions()
 
         val initialUrl = getDefaultUrl()
         loadUrl(initialUrl)
@@ -66,9 +79,24 @@ class MainActivity : AppCompatActivity() {
         checkForUpdates(isManual = false)
     }
 
+    private fun checkAndRequestPermissions() {
+        val permissionsToRequest = mutableListOf<String>()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+                permissionsToRequest.add(Manifest.permission.BLUETOOTH_CONNECT)
+            }
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_SCAN) != PackageManager.PERMISSION_GRANTED) {
+                permissionsToRequest.add(Manifest.permission.BLUETOOTH_SCAN)
+            }
+        }
+        if (permissionsToRequest.isNotEmpty()) {
+            requestPermissionLauncher.launch(permissionsToRequest.toTypedArray())
+        }
+    }
+
     private fun setupToolbar() {
         setSupportActionBar(binding.toolbar)
-        supportActionBar?.title = getString(R.string.app_name)
+        supportActionBar?.title = getString(R.string.toolbar_title)
     }
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -86,7 +114,7 @@ class MainActivity : AppCompatActivity() {
             useWideViewPort = false // Match Chrome Mobile Viewport (window.innerWidth < 800)
             setSupportMultipleWindows(true)
             javaScriptCanOpenWindowsAutomatically = true
-            userAgentString = userAgentString + " JNETMonitorApp/2.0"
+            userAgentString = userAgentString + " JNETMonitorApp/2.1"
         }
     }
 
@@ -105,11 +133,6 @@ class MainActivity : AppCompatActivity() {
                 } else {
                     binding.progressBar.visibility = View.GONE
                 }
-            }
-
-            override fun onReceivedTitle(view: WebView?, title: String?) {
-                super.onReceivedTitle(view, title)
-                // Subtitle removed
             }
 
             override fun onCreateWindow(
@@ -297,10 +320,6 @@ class MainActivity : AppCompatActivity() {
         return launchIntent(url, targetWebView)
     }
 
-    /**
-     * Replicates Chrome's GURL C++ engine URL cleaning:
-     * Percent-encodes spaces, newlines, and special characters before creating Intent.
-     */
     private fun cleanAndParseQuickPrinterIntent(url: String): Intent? {
         try {
             val prefix = "intent://"
@@ -309,10 +328,10 @@ class MainActivity : AppCompatActivity() {
             var payload = ""
             if (url.startsWith(prefix)) {
                 val hashIndex = url.indexOf(suffix)
-                if (hashIndex != -1) {
-                    payload = url.substring(prefix.length, hashIndex)
+                payload = if (hashIndex != -1) {
+                    url.substring(prefix.length, hashIndex)
                 } else {
-                    payload = url.substring(prefix.length)
+                    url.substring(prefix.length)
                 }
             } else if (url.startsWith("quickprinter://")) {
                 payload = url.substring("quickprinter://".length)
@@ -320,7 +339,6 @@ class MainActivity : AppCompatActivity() {
                 payload = url
             }
 
-            // Percent-encode spaces, newlines, and special characters like Chrome does
             val cleanedPayload = payload
                 .replace("\r\n", "\n")
                 .replace(" ", "%20")
@@ -343,7 +361,7 @@ class MainActivity : AppCompatActivity() {
 
     fun launchIntent(url: String, targetWebView: WebView?): Boolean {
         if (url.startsWith("intent://") || url.contains("scheme=quickprinter") || url.contains("package=$QUICKPRINTER_PACKAGE") || url.startsWith("quickprinter:")) {
-            // Method 1: Try cleaned QuickPrinter intent with Chrome-style encoding
+            // Method 1: Try URI scheme quickprinter://<cleanedPayload>
             val qpIntent = cleanAndParseQuickPrinterIntent(url)
             if (qpIntent != null) {
                 try {
@@ -352,7 +370,7 @@ class MainActivity : AppCompatActivity() {
                 } catch (e: Exception) {}
             }
 
-            // Method 2: Try standard Intent.parseUri
+            // Method 2: Try Intent.parseUri
             try {
                 val intent = Intent.parseUri(url, Intent.URI_INTENT_SCHEME).apply {
                     addCategory(Intent.CATEGORY_BROWSABLE)
@@ -362,7 +380,19 @@ class MainActivity : AppCompatActivity() {
                 return true
             } catch (e: Exception) {}
 
-            // Method 3: Direct package launch intent for QuickPrinter
+            // Method 3: Try Intent.ACTION_SEND with text payload
+            try {
+                val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                    type = "text/plain"
+                    putExtra(Intent.EXTRA_TEXT, url)
+                    setPackage(QUICKPRINTER_PACKAGE)
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                startActivity(sendIntent)
+                return true
+            } catch (e: Exception) {}
+
+            // Method 4: Direct package launch intent
             try {
                 val launchIntent = packageManager.getLaunchIntentForPackage(QUICKPRINTER_PACKAGE)
                 if (launchIntent != null) {
@@ -373,7 +403,7 @@ class MainActivity : AppCompatActivity() {
                 }
             } catch (e: Exception) {}
 
-            // Method 4: Fallback to System Print
+            // Method 5: Fallback to System Print
             printWebPage(targetWebView)
             return true
         }
@@ -410,7 +440,7 @@ class MainActivity : AppCompatActivity() {
         try {
             val wv = targetWebView ?: binding.webView
             val printManager = getSystemService(Context.PRINT_SERVICE) as PrintManager
-            val jobName = "${getString(R.string.app_name)}_${System.currentTimeMillis()}"
+            val jobName = "${getString(R.string.toolbar_title)}_${System.currentTimeMillis()}"
             val printAdapter = wv.createPrintDocumentAdapter(jobName)
             val attr = PrintAttributes.Builder()
                 .setMediaSize(PrintAttributes.MediaSize.ISO_A4)
@@ -573,8 +603,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun getCurrentVersion() = try {
-        packageManager.getPackageInfo(packageName, 0).versionName ?: "2.0.0"
-    } catch (e: Exception) { "2.0.0" }
+        packageManager.getPackageInfo(packageName, 0).versionName ?: "2.1.0"
+    } catch (e: Exception) { "2.1.0" }
 
     private fun cleanVersion(v: String) = v.trim().trimStart('v', 'V')
 
