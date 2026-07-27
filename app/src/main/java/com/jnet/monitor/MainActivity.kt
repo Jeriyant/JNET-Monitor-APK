@@ -87,7 +87,7 @@ class MainActivity : AppCompatActivity() {
             useWideViewPort = true
             setSupportMultipleWindows(true)
             javaScriptCanOpenWindowsAutomatically = true
-            userAgentString = userAgentString + " JNETMonitorApp/1.4"
+            userAgentString = userAgentString + " JNETMonitorApp/1.5"
         }
     }
 
@@ -203,30 +203,43 @@ class MainActivity : AppCompatActivity() {
             return false
         }
 
-        // Handle Android Intent Scheme (e.g. intent://...#Intent;scheme=quickprinter;package=...;end;)
+        // Handle Android Intent Scheme (e.g. intent://...#Intent;scheme=quickprinter;package=pe.diegoveloper.printerserverapp;end;)
         if (url.startsWith("intent://")) {
             try {
                 val intent = Intent.parseUri(url, Intent.URI_INTENT_SCHEME)
                 if (intent != null) {
-                    val packageManager = packageManager
-                    val info = packageManager.resolveActivity(intent, 0)
-                    if (info != null) {
-                        // Bluetooth Printer App (QuickPrinter/RawBT) is installed -> launch it!
+                    intent.addCategory(Intent.CATEGORY_BROWSABLE)
+                    intent.setComponent(null)
+                    intent.setSelector(null)
+                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+
+                    try {
                         startActivity(intent)
-                    } else {
-                        // QuickPrinter is not installed -> Fallback to Native System Print
+                        return true
+                    } catch (e: Exception) {
+                        // QuickPrinter app not installed or failed to launch directly -> check fallback URL or Market
                         val fallbackUrl = intent.getStringExtra("browser_fallback_url")
                         if (fallbackUrl != null) {
                             targetWebView?.loadUrl(fallbackUrl)
                         } else {
-                            // Automatically print via native Android PrintManager when printer app is missing
-                            printWebPage(targetWebView)
+                            val packageName = intent.getPackage()
+                            if (packageName != null) {
+                                try {
+                                    startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=$packageName")).apply {
+                                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                    })
+                                } catch (e2: Exception) {
+                                    printWebPage(targetWebView)
+                                }
+                            } else {
+                                printWebPage(targetWebView)
+                            }
                         }
+                        return true
                     }
-                    return true
                 }
             } catch (e: Exception) {
-                printWebPage(targetWebView)
+                Toast.makeText(this, "Gagal memproses intent cetak: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
                 return true
             }
         }
@@ -234,12 +247,10 @@ class MainActivity : AppCompatActivity() {
         // Handle Bluetooth printer schemes (rawbt:, quickprinter:)
         if (url.startsWith("rawbt:") || url.startsWith("quickprinter:")) {
             try {
-                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
-                if (intent.resolveActivity(packageManager) != null) {
-                    startActivity(intent)
-                } else {
-                    printWebPage(targetWebView)
+                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 }
+                startActivity(intent)
                 return true
             } catch (e: Exception) {
                 printWebPage(targetWebView)
@@ -249,7 +260,9 @@ class MainActivity : AppCompatActivity() {
 
         // External apps (tel:, mailto:, whatsapp:)
         return try {
-            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
             startActivity(intent)
             true
         } catch (e: Exception) {
@@ -476,9 +489,9 @@ class MainActivity : AppCompatActivity() {
     private fun getCurrentVersion(): String {
         return try {
             val pInfo = packageManager.getPackageInfo(packageName, 0)
-            pInfo.versionName ?: "1.4.0"
+            pInfo.versionName ?: "1.5.0"
         } catch (e: Exception) {
-            "1.4.0"
+            "1.5.0"
         }
     }
 
