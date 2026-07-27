@@ -45,6 +45,7 @@ class MainActivity : AppCompatActivity() {
         private const val FALLBACK_URL = "https://google.com"
         private const val JS_PRINT_INTERFACE = "AndroidPrintInterface"
         private const val GITHUB_RELEASES_API = "https://api.github.com/repos/Jeriyant/JNET-Monitor-APK/releases/latest"
+        private const val QUICKPRINTER_PACKAGE = "pe.diegoveloper.printerserverapp"
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -87,7 +88,7 @@ class MainActivity : AppCompatActivity() {
             useWideViewPort = true
             setSupportMultipleWindows(true)
             javaScriptCanOpenWindowsAutomatically = true
-            userAgentString = userAgentString + " JNETMonitorApp/1.5"
+            userAgentString = userAgentString + " JNETMonitorApp/1.6"
         }
     }
 
@@ -134,6 +135,11 @@ class MainActivity : AppCompatActivity() {
                 }
 
                 popupWebView.webViewClient = object : WebViewClient() {
+                    @Suppress("OVERRIDE_DEPRECATION")
+                    override fun shouldOverrideUrlLoading(v: WebView?, url: String?): Boolean {
+                        return handleUrlLoading(url ?: "", v)
+                    }
+
                     override fun shouldOverrideUrlLoading(v: WebView?, request: WebResourceRequest?): Boolean {
                         val url = request?.url?.toString() ?: return false
                         return handleUrlLoading(url, v)
@@ -157,6 +163,11 @@ class MainActivity : AppCompatActivity() {
         }
 
         binding.webView.webViewClient = object : WebViewClient() {
+            @Suppress("OVERRIDE_DEPRECATION")
+            override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
+                return handleUrlLoading(url ?: "", view)
+            }
+
             override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
                 val url = request?.url?.toString() ?: return false
                 return handleUrlLoading(url, view)
@@ -198,63 +209,70 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun handleUrlLoading(url: String, targetWebView: WebView?): Boolean {
+        if (url.isEmpty()) return false
+
         // Standard HTTP & HTTPS -> load inside WebView
         if (url.startsWith("http://") || url.startsWith("https://")) {
             return false
         }
 
         // Handle Android Intent Scheme (e.g. intent://...#Intent;scheme=quickprinter;package=pe.diegoveloper.printerserverapp;end;)
-        if (url.startsWith("intent://")) {
+        if (url.startsWith("intent://") || url.contains("scheme=quickprinter") || url.contains("package=$QUICKPRINTER_PACKAGE")) {
             try {
-                val intent = Intent.parseUri(url, Intent.URI_INTENT_SCHEME)
+                var intent: Intent? = null
+                try {
+                    intent = Intent.parseUri(url, Intent.URI_INTENT_SCHEME)
+                } catch (e: Exception) {
+                    intent = parseQuickPrinterIntentManually(url)
+                }
+
                 if (intent != null) {
                     intent.addCategory(Intent.CATEGORY_BROWSABLE)
-                    intent.setComponent(null)
-                    intent.setSelector(null)
                     intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
 
                     try {
                         startActivity(intent)
                         return true
                     } catch (e: Exception) {
-                        // QuickPrinter app not installed or failed to launch directly -> check fallback URL or Market
-                        val fallbackUrl = intent.getStringExtra("browser_fallback_url")
-                        if (fallbackUrl != null) {
-                            targetWebView?.loadUrl(fallbackUrl)
-                        } else {
-                            val packageName = intent.getPackage()
-                            if (packageName != null) {
-                                try {
-                                    startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=$packageName")).apply {
-                                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                    })
-                                } catch (e2: Exception) {
-                                    printWebPage(targetWebView)
-                                }
-                            } else {
-                                printWebPage(targetWebView)
-                            }
+                        // If direct startActivity failed, attempt package launch intent
+                        val pkg = intent.getPackage() ?: QUICKPRINTER_PACKAGE
+                        val launchIntent = packageManager.getLaunchIntentForPackage(pkg)
+                        if (launchIntent != null) {
+                            launchIntent.putExtra("data", url)
+                            launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            startActivity(launchIntent)
+                            return true
                         }
-                        return true
                     }
                 }
             } catch (e: Exception) {
-                Toast.makeText(this, "Gagal memproses intent cetak: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
-                return true
+                // Fallback attempt to open QuickPrinter app directly
+                try {
+                    val launchIntent = packageManager.getLaunchIntentForPackage(QUICKPRINTER_PACKAGE)
+                    if (launchIntent != null) {
+                        launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        startActivity(launchIntent)
+                        return true
+                    }
+                } catch (e2: Exception) {}
             }
+
+            // If QuickPrinter app fails or is not installed, fallback to Native System Print
+            printWebPage(targetWebView)
+            return true
         }
 
         // Handle Bluetooth printer schemes (rawbt:, quickprinter:)
         if (url.startsWith("rawbt:") || url.startsWith("quickprinter:")) {
-            try {
+            return try {
                 val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 }
                 startActivity(intent)
-                return true
+                true
             } catch (e: Exception) {
                 printWebPage(targetWebView)
-                return true
+                true
             }
         }
 
@@ -269,6 +287,25 @@ class MainActivity : AppCompatActivity() {
             Toast.makeText(this, "Aplikasi tidak ditemukan", Toast.LENGTH_SHORT).show()
             true
         }
+    }
+
+    private fun parseQuickPrinterIntentManually(url: String): Intent? {
+        try {
+            val prefix = "intent://"
+            val suffix = "#Intent;"
+            val startIndex = url.indexOf(prefix)
+            val endIndex = url.lastIndexOf(suffix)
+
+            if (startIndex != -1 && endIndex != -1 && endIndex > startIndex) {
+                val payload = url.substring(startIndex + prefix.length, endIndex)
+                val intent = Intent(Intent.ACTION_VIEW, Uri.parse("quickprinter://$payload"))
+                intent.setPackage(QUICKPRINTER_PACKAGE)
+                intent.addCategory(Intent.CATEGORY_BROWSABLE)
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                return intent
+            }
+        } catch (e: Exception) {}
+        return null
     }
 
     private fun setupSwipeRefresh() {
@@ -489,9 +526,9 @@ class MainActivity : AppCompatActivity() {
     private fun getCurrentVersion(): String {
         return try {
             val pInfo = packageManager.getPackageInfo(packageName, 0)
-            pInfo.versionName ?: "1.5.0"
+            pInfo.versionName ?: "1.6.0"
         } catch (e: Exception) {
-            "1.5.0"
+            "1.6.0"
         }
     }
 
