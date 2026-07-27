@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">JNET-Monitor v.1.6</string>
+    <string name="app_name">JNET-Monitor v.1.7</string>
     
     <!-- Menu Items -->
     <string name="menu_reload">Muat Ulang</string>

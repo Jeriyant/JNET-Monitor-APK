@@ -42,7 +42,7 @@ class MainActivity : AppCompatActivity() {
     companion object {
         private const val PREFS_NAME = "JNetMonitorPrefs"
         private const val KEY_DEFAULT_URL = "default_url"
-        private const val FALLBACK_URL = "https://google.com"
+        private const val FALLBACK_URL = "https://jeriyant.my.id"
         private const val JS_PRINT_INTERFACE = "AndroidPrintInterface"
         private const val GITHUB_RELEASES_API = "https://api.github.com/repos/Jeriyant/JNET-Monitor-APK/releases/latest"
         private const val QUICKPRINTER_PACKAGE = "pe.diegoveloper.printerserverapp"
@@ -88,7 +88,7 @@ class MainActivity : AppCompatActivity() {
             useWideViewPort = true
             setSupportMultipleWindows(true)
             javaScriptCanOpenWindowsAutomatically = true
-            userAgentString = userAgentString + " JNETMonitorApp/1.6"
+            userAgentString = userAgentString + " JNETMonitorApp/1.7"
         }
     }
 
@@ -111,12 +111,10 @@ class MainActivity : AppCompatActivity() {
 
             override fun onReceivedTitle(view: WebView?, title: String?) {
                 super.onReceivedTitle(view, title)
-                if (!title.isNull_or_empty_or_url(view?.url)) {
-                    binding.toolbar.subtitle = title
-                }
+                // Subtitle under program name removed as per user request
             }
 
-            // Handle window.open(...) and target="_blank" popups used by Quick Print & Mikhmon / JNET-MONITOR voucher print
+            // Handle window.open(...) popups used by Quick Print & Mikhmon / JNET-MONITOR voucher print
             override fun onCreateWindow(
                 view: WebView?,
                 isDialog: Boolean,
@@ -127,12 +125,6 @@ class MainActivity : AppCompatActivity() {
                 configureWebSettings(popupWebView.settings)
 
                 popupWebView.addJavascriptInterface(WebPrintInterface(this@MainActivity, popupWebView), JS_PRINT_INTERFACE)
-
-                popupWebView.webChromeClient = object : WebChromeClient() {
-                    override fun onCloseWindow(window: WebView?) {
-                        super.onCloseWindow(window)
-                    }
-                }
 
                 popupWebView.webViewClient = object : WebViewClient() {
                     @Suppress("OVERRIDE_DEPRECATION")
@@ -148,9 +140,10 @@ class MainActivity : AppCompatActivity() {
                     override fun onPageFinished(v: WebView?, url: String?) {
                         super.onPageFinished(v, url)
                         injectPrintJavaScript(v)
-                        // Trigger native printing when voucher print page completes loading
+                        
+                        // Load popup print URLs into main visible WebView so user can print & see page
                         if (url != null && (url.contains("print.php") || url.contains("vpreview.php") || url.contains("quickuser.php") || url.contains("printbt.php"))) {
-                            printWebPage(v)
+                            binding.webView.loadUrl(url)
                         }
                     }
                 }
@@ -176,7 +169,7 @@ class MainActivity : AppCompatActivity() {
             override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
                 super.onPageStarted(view, url, favicon)
                 binding.layoutError.visibility = View.GONE
-                binding.toolbar.subtitle = url
+                // Subtitle under program name removed as per user request
             }
 
             override fun onPageFinished(view: WebView?, url: String?) {
@@ -234,7 +227,6 @@ class MainActivity : AppCompatActivity() {
                         startActivity(intent)
                         return true
                     } catch (e: Exception) {
-                        // If direct startActivity failed, attempt package launch intent
                         val pkg = intent.getPackage() ?: QUICKPRINTER_PACKAGE
                         val launchIntent = packageManager.getLaunchIntentForPackage(pkg)
                         if (launchIntent != null) {
@@ -246,7 +238,6 @@ class MainActivity : AppCompatActivity() {
                     }
                 }
             } catch (e: Exception) {
-                // Fallback attempt to open QuickPrinter app directly
                 try {
                     val launchIntent = packageManager.getLaunchIntentForPackage(QUICKPRINTER_PACKAGE)
                     if (launchIntent != null) {
@@ -257,7 +248,7 @@ class MainActivity : AppCompatActivity() {
                 } catch (e2: Exception) {}
             }
 
-            // If QuickPrinter app fails or is not installed, fallback to Native System Print
+            // Fallback to Native System Print
             printWebPage(targetWebView)
             return true
         }
@@ -362,6 +353,17 @@ class MainActivity : AppCompatActivity() {
                         }
                     };
                     window.print.isNativeBridge = true;
+                }
+                if (!window.openPrintBridge) {
+                    var origOpen = window.open;
+                    window.open = function(url, target, features) {
+                        if (url && (url.indexOf('print.php') !== -1 || url.indexOf('vpreview.php') !== -1 || url.indexOf('printbt.php') !== -1)) {
+                            window.location.href = url;
+                            return null;
+                        }
+                        return origOpen ? origOpen.apply(this, arguments) : null;
+                    };
+                    window.openPrintBridge = true;
                 }
             })();
         """.trimIndent()
@@ -526,9 +528,9 @@ class MainActivity : AppCompatActivity() {
     private fun getCurrentVersion(): String {
         return try {
             val pInfo = packageManager.getPackageInfo(packageName, 0)
-            pInfo.versionName ?: "1.6.0"
+            pInfo.versionName ?: "1.7.0"
         } catch (e: Exception) {
-            "1.6.0"
+            "1.7.0"
         }
     }
 
