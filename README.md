@@ -1,10 +1,8 @@
-# JNET-MONITOR
+# JNET-MONITOR-APK
 
 <div align="center">
 
-![JNET-MONITOR Logo](app/src/main/res/drawable/ic_launcher.png)
-
-**Aplikasi Android untuk Monitoring Hotspot MikroTik & Cetak Cepat Voucher Thermal Bluetooth**
+**Browser Android Khusus untuk Sistem Monitoring & Manajemen Jaringan Hotspot**
 
 [![Release](https://img.shields.io/github/v/release/Jeriyant/JNET-Monitor-APK?color=3B82F6&label=Versi+Terbaru&style=for-the-badge)](https://github.com/Jeriyant/JNET-Monitor-APK/releases/latest)
 [![Platform](https://img.shields.io/badge/Platform-Android-green?style=for-the-badge&logo=android)](https://android.com)
@@ -18,12 +16,12 @@
 
 ## 📱 Tentang Aplikasi
 
-**JNET-MONITOR** adalah aplikasi Android WebView native berbasis **Kotlin + Material 3** yang dirancang khusus untuk sistem manajemen dan monitoring jaringan hotspot MikroTik / Mikhmon. Aplikasi ini menyediakan:
+**JNET-MONITOR-APK** adalah aplikasi browser Android berbasis **WebView native (Kotlin + Material 3)** yang dirancang khusus untuk mengakses sistem pengelolaan jaringan hotspot berbasis web dari perangkat Android. Aplikasi ini berfungsi layaknya browser khusus yang sudah dikonfigurasi untuk:
 
-- 🌐 **Akses penuh** ke panel web Mikhmon / MikroTik langsung dari HP Android
-- 🖨️ **Cetak Cepat Voucher** Thermal Bluetooth menggunakan QuickPrinter & RAWBT
-- 📶 **Monitoring real-time** sesi aktif, pengguna, dan traffic jaringan
-- 🔄 **Pembaruan otomatis wajib (Force Update)** melalui GitHub Releases API
+- 🌐 Membuka panel web manajemen jaringan hotspot secara langsung dari HP Android
+- 🖨️ Mendukung **Cetak Cepat Voucher** Thermal Bluetooth (QuickPrinter & RAWBT) tanpa perlu buka browser lain
+- 🔗 Menangani semua jenis navigasi web termasuk tab baru, popup, dan redirect
+- 🔄 Memperbarui diri secara otomatis melalui GitHub Releases
 
 ---
 
@@ -31,52 +29,53 @@
 
 | Fitur | Keterangan |
 |---|---|
-| 🖨️ **Cetak Cepat Voucher** | Integrasi penuh QuickPrinter & RAWBT dengan intercept `Location.prototype.href` anti-SyntaxError V8 Chromium |
-| 🌐 **WebView Penuh** | Mendukung JavaScript, DOM Storage, AJAX, Multi-Window, `window.open()` |
-| 🪟 **Handler Tab Baru** | Dukungan `target="_blank"` & `window.open()` anti-crash dengan pembersihan memori otomatis |
+| 🖨️ **Cetak Cepat Voucher** | Dukungan QuickPrinter & RAWBT dengan solusi intercept `Location.prototype.href` khusus untuk WebView modern |
+| 🌐 **Browser WebView Penuh** | JavaScript, DOM Storage, AJAX, Multi-Window, `window.open()`, tab baru |
+| 🪟 **Handler Tab Baru Anti-Crash** | Dukungan `target="_blank"` & `window.open()` tanpa crash, memori dibersihkan otomatis |
 | 📜 **Riwayat Browser** | Simpan & buka kembali halaman yang pernah dikunjungi (maks. 30 halaman) |
-| ⚙️ **Pengaturan URL** | URL Default tersimpan di `SharedPreferences`, lengkap tombol *Set ke URL Saat Ini* |
-| 🔌 **Driver Printer** | Unduh langsung 4 driver printer thermal Bluetooth populer |
-| ℹ️ **Tentang & Update** | Info pembuat, versi, dan tombol Cek Pembaruan dalam satu dialog |
-| 🌗 **Dark Mode** | Toolbar, Status Bar, Dialog, dan WebView mengikuti Mode Terang/Gelap sistem HP |
-| 🔒 **Force Update** | Pengguna wajib update saat versi baru tersedia (dialog non-cancelable) |
-| 🔵 **Bluetooth** | Izin runtime Bluetooth lengkap (Android 12+) |
+| ⚙️ **Pengaturan URL Default** | URL awal tersimpan di penyimpanan lokal, dilengkapi tombol *Set ke URL Saat Ini* |
+| 🔌 **Driver Printer** | Unduh langsung 4 driver printer thermal Bluetooth populer dari dalam aplikasi |
+| ℹ️ **Tentang & Cek Pembaruan** | Info versi dan tombol cek pembaruan langsung ke GitHub Releases |
+| 🌗 **Dark / Light Mode Otomatis** | Toolbar, Status Bar, Dialog, dan isi browser mengikuti tema sistem HP |
+| 🔒 **Force Update** | Pengguna wajib memperbarui saat versi baru tersedia |
+| 🔵 **Bluetooth Runtime** | Izin Bluetooth lengkap termasuk runtime permission Android 12+ |
 
 ---
 
-## 🖨️ Cara Kerja Cetak Cepat
+## 🖨️ Cara Kerja Cetak Cepat Voucher
 
-Situs web Mikhmon menjalankan fungsi `sendToQuickPrinterChrome()` yang mencoba mengeksekusi:
+Halaman web manajemen jaringan umumnya menggunakan fungsi JavaScript berikut untuk mencetak voucher ke printer thermal:
+
 ```javascript
-window.location.href = "intent://...#Intent;scheme=quickprinter;package=pe.diegoveloper.printerserverapp;end;"
+window.location.href = "intent://...ESC/POS data...#Intent;scheme=quickprinter;package=pe.diegoveloper.printerserverapp;end;"
 ```
 
-Di Android WebView modern (Chromium V8 terbaru), URL berformat `intent://` yang berisi ESC/POS thermal text **ditolak** dan melempar `SyntaxError`.
+Pada Android WebView berbasis Chromium V8 modern, URL berformat `intent://` yang berisi data thermal ESC/POS **ditolak dan melempar `SyntaxError`** sehingga cetak tidak pernah terjadi.
 
-**Solusi JNET-MONITOR:**
+**Solusi di JNET-MONITOR-APK:**
 
-Mencegat setter `Location.prototype.href` langsung pada level prototipe DOM **sebelum** validasi URL V8 Chromium berjalan:
-```kotlin
-// Injeksi JavaScript bridge setiap kali halaman selesai dimuat
-webView.evaluateJavascript("""
-    var origSetter = Object.getOwnPropertyDescriptor(Location.prototype, 'href').set;
-    Object.defineProperty(Location.prototype, 'href', {
-        set: function(val) {
-            if (val.indexOf('intent://') === 0 || val.indexOf('quickprinter:') === 0) {
-                AndroidPrintInterface.sendIntent(val); // Diteruskan ke Kotlin Native
-                return;
-            }
-            origSetter.call(this, val);
+Mencegat setter `Location.prototype.href` langsung pada prototipe DOM **sebelum** validasi URL Chromium V8 berjalan:
+
+```javascript
+var origSetter = Object.getOwnPropertyDescriptor(Location.prototype, 'href').set;
+Object.defineProperty(Location.prototype, 'href', {
+    set: function(val) {
+        if (val.indexOf('intent://') === 0 || val.indexOf('quickprinter:') === 0) {
+            AndroidPrintInterface.sendIntent(val); // Diteruskan ke Kotlin native
+            return;
         }
-    });
-""", null)
+        origSetter.call(this, val);
+    }
+});
 ```
+
+Perintah cetak kemudian diteruskan secara native ke aplikasi **QuickPrinter** atau **RAWBT** di Android.
 
 ---
 
 ## 🔌 Driver Printer yang Didukung
 
-Unduh driver printer thermal Bluetooth langsung dari menu aplikasi:
+Unduh driver printer thermal Bluetooth langsung dari menu **Driver Printer** di dalam aplikasi:
 
 | Aplikasi | Versi | Unduh |
 |---|---|---|
@@ -87,10 +86,10 @@ Unduh driver printer thermal Bluetooth langsung dari menu aplikasi:
 
 ---
 
-## 📦 Instalasi APK
+## 📦 Cara Instalasi APK
 
-### Cara Tercepat (Download Langsung)
-1. Kunjungi halaman **[GitHub Releases Terbaru](https://github.com/Jeriyant/JNET-Monitor-APK/releases/latest)**
+### Download Langsung (Cara Tercepat)
+1. Buka halaman **[Releases Terbaru](https://github.com/Jeriyant/JNET-Monitor-APK/releases/latest)**
 2. Unduh berkas `JNET-MONITOR-vX.X.apk`
 3. Aktifkan **Izin Sumber Tidak Diketahui** di HP Android Anda
 4. Pasang dan jalankan aplikasi
@@ -102,71 +101,68 @@ Unduh driver printer thermal Bluetooth langsung dari menu aplikasi:
 - JDK 17+
 - Android SDK (API 24 – 34)
 
-**Langkah Build:**
 ```bash
 git clone https://github.com/Jeriyant/JNET-Monitor-APK.git
 cd JNET-Monitor-APK
-gradlew.bat assembleDebug       # Windows
-./gradlew assembleDebug         # Linux / macOS
+./gradlew assembleDebug        # Linux / macOS
+gradlew.bat assembleDebug      # Windows
 ```
 
-APK output akan tersedia di: `app/build/outputs/apk/debug/app-debug.apk`
+Output APK: `app/build/outputs/apk/debug/app-debug.apk`
 
 ---
 
-## 📋 Persyaratan Sistem
+## 📋 Persyaratan
 
 | Spesifikasi | Detail |
 |---|---|
 | OS Android | Android 7.0 (API 24) ke atas |
-| Bluetooth Printer | Printer thermal ESC/POS berbasis Bluetooth |
-| Koneksi | WiFi / LAN untuk akses panel Mikhmon |
-| Aplikasi Driver | QuickPrinter ATAU RAWBT harus sudah terpasang |
+| Printer | Printer thermal ESC/POS berbasis Bluetooth |
+| Jaringan | WiFi / LAN untuk mengakses panel web |
+| Driver | QuickPrinter **atau** RAWBT harus terpasang untuk fitur cetak cepat |
 
 ---
 
 ## 🔐 Izin Aplikasi
 
-| Izin | Alasan |
+| Izin | Fungsi |
 |---|---|
-| `INTERNET` | Mengakses panel web Mikhmon / MikroTik |
+| `INTERNET` | Mengakses halaman web manajemen jaringan |
 | `ACCESS_NETWORK_STATE` | Memantau status koneksi jaringan |
-| `BLUETOOTH` | Koneksi printer thermal Bluetooth (API < 31) |
-| `BLUETOOTH_ADMIN` | Manajemen perangkat Bluetooth (API < 31) |
-| `BLUETOOTH_CONNECT` | Koneksi Bluetooth runtime (Android 12+) |
-| `BLUETOOTH_SCAN` | Pemindaian perangkat Bluetooth (Android 12+) |
-| `QUERY_ALL_PACKAGES` | Visibilitas paket QuickPrinter & RAWBT |
+| `BLUETOOTH` + `BLUETOOTH_ADMIN` | Koneksi printer Bluetooth (Android < 12) |
+| `BLUETOOTH_CONNECT` + `BLUETOOTH_SCAN` | Koneksi Bluetooth runtime (Android 12+) |
+| `QUERY_ALL_PACKAGES` | Mendeteksi keberadaan QuickPrinter / RAWBT |
 
 ---
 
-## 📋 Daftar Versi
+## 📋 Riwayat Versi
 
-| Versi | Perubahan Utama |
+| Versi | Perubahan |
 |---|---|
-| **v2.9.0** | Handler New Tab (`window.open`) anti-crash & pembersihan memori otomatis |
-| **v2.8.0** | Ikon menu seragam + penyesuaian Dark Mode menyeluruh (Toolbar, Status Bar, WebView) |
-| **v2.7.0** | Ikon visual di seluruh menu titik tiga + NokoPrint Premium v5.27.0 |
-| **v2.6.0** | Menu Driver Printer, Cek Pembaruan di dialog Tentang |
+| **v2.9.0** | Handler tab baru (`window.open`, `target="_blank"`) anti-crash |
+| **v2.8.0** | Ikon menu seragam + Dark Mode menyeluruh (Toolbar, Status Bar, WebView) |
+| **v2.7.0** | Ikon visual di menu + NokoPrint Premium v5.27.0 |
+| **v2.6.0** | Menu Driver Printer, Cek Pembaruan masuk ke dialog Tentang |
 | **v2.5.0** | Riwayat Browser, Set ke URL Saat Ini, Force Update, System Dark Mode |
-| **v2.4.0** | **FIX: Intercept `Location.prototype.href` — Cetak Cepat berjalan di WebView modern** |
+| **v2.4.0** | ✅ **FIX UTAMA: Cetak Cepat berjalan di WebView Chromium V8 modern** |
 | **v2.3.0** | Izin Bluetooth runtime Android 12+ |
 | **v2.0.0** | Toolbar ringkas 42dp, nama launcher JNET-MONITOR |
-| **v1.0.0** | Rilis perdana WebView + Print Manager |
+| **v1.0.0** | Rilis perdana WebView browser + Print Manager |
 
 ---
 
-## 👨‍💻 Pembuat Aplikasi
+## 👨‍💻 Pembuat
 
 <div align="center">
 
 **JERIYANT-BARAMCITY**
 
-Dikembangkan untuk mendukung kemudahan pengelolaan jaringan hotspot MikroTik di lapangan.
+Dikembangkan untuk kemudahan akses dan pengelolaan jaringan hotspot dari genggaman tangan.
 
 ---
 
-📧 Pertanyaan & Laporan Bug: [GitHub Issues](https://github.com/Jeriyant/JNET-Monitor-APK/issues)
+🐛 Laporan Bug & Saran: [GitHub Issues](https://github.com/Jeriyant/JNET-Monitor-APK/issues)
 
-⭐ Jika aplikasi ini membantu, jangan lupa **beri bintang** pada repositori ini!
+⭐ Jika aplikasi ini bermanfaat, silakan **beri bintang** pada repositori ini!
 
 </div>
