@@ -14,7 +14,6 @@ import android.view.Menu
 import android.view.MenuItem
 import android.view.View
 import android.webkit.JavascriptInterface
-import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
@@ -27,6 +26,12 @@ import androidx.appcompat.app.AppCompatActivity
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.jnet.monitor.databinding.ActivityMainBinding
 import com.jnet.monitor.databinding.DialogSettingsBinding
+import org.json.JSONObject
+import java.io.BufferedReader
+import java.io.InputStreamReader
+import java.net.HttpURLConnection
+import java.net.URL
+import java.util.concurrent.Executors
 
 class MainActivity : AppCompatActivity() {
 
@@ -38,6 +43,7 @@ class MainActivity : AppCompatActivity() {
         private const val KEY_DEFAULT_URL = "default_url"
         private const val FALLBACK_URL = "https://google.com"
         private const val JS_PRINT_INTERFACE = "AndroidPrintInterface"
+        private const val GITHUB_RELEASES_API = "https://api.github.com/repos/Jeriyant/JNET-Monitor-APK/releases/latest"
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -55,6 +61,9 @@ class MainActivity : AppCompatActivity() {
         // Load Default URL
         val initialUrl = getDefaultUrl()
         loadUrl(initialUrl)
+
+        // Check for updates on app startup (silent mode)
+        checkForUpdates(isManual = false)
     }
 
     private fun setupToolbar() {
@@ -244,6 +253,10 @@ class MainActivity : AppCompatActivity() {
                 showSettingsDialog()
                 true
             }
+            R.id.action_check_update -> {
+                checkForUpdates(isManual = true)
+                true
+            }
             R.id.action_exit -> {
                 finish()
                 true
@@ -262,14 +275,13 @@ class MainActivity : AppCompatActivity() {
         val dialog = MaterialAlertDialogBuilder(this)
             .setTitle(getString(R.string.dialog_settings_title))
             .setView(dialogBinding.root)
-            .setPositiveButton(getString(R.string.btn_save), null) // Set null to handle validation inside listener
+            .setPositiveButton(getString(R.string.btn_save), null)
             .setNeutralButton(getString(R.string.btn_reset_default), null)
             .setNegativeButton(getString(R.string.btn_cancel)) { d, _ -> d.dismiss() }
             .create()
 
         dialog.show()
 
-        // Handle Positive Button click with validation
         dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener {
             val inputUrl = dialogBinding.etUrl.text.toString().trim()
             if (TextUtils.isEmpty(inputUrl)) {
@@ -285,13 +297,136 @@ class MainActivity : AppCompatActivity() {
             dialog.dismiss()
         }
 
-        // Handle Neutral Button click (Reset to Default)
         dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_NEUTRAL).setOnClickListener {
             saveDefaultUrl(FALLBACK_URL)
             Toast.makeText(this, "URL direset ke $FALLBACK_URL", Toast.LENGTH_SHORT).show()
             loadUrl(FALLBACK_URL)
             dialog.dismiss()
         }
+    }
+
+    // ==========================================
+    // GitHub Releases Auto-Update Subsystem
+    // ==========================================
+
+    private fun checkForUpdates(isManual: Boolean) {
+        if (isManual) {
+            Toast.makeText(this, getString(R.string.update_checking), Toast.LENGTH_SHORT).show()
+        }
+
+        Executors.newSingleThreadExecutor().execute {
+            try {
+                val url = URL(GITHUB_RELEASES_API)
+                val conn = url.openConnection() as HttpURLConnection
+                conn.requestMethod = "GET"
+                conn.setRequestProperty("Accept", "application/vnd.github.v3+json")
+                conn.connectTimeout = 8000
+                conn.readTimeout = 8000
+
+                if (conn.responseCode == 200) {
+                    val reader = BufferedReader(InputStreamReader(conn.inputStream))
+                    val response = StringBuilder()
+                    var line: String?
+                    while (reader.readLine().also { line = it } != null) {
+                        response.append(line)
+                    }
+                    reader.close()
+
+                    val json = JSONObject(response.toString())
+                    val rawTag = json.optString("tag_name", "")
+                    val releaseNotes = json.optString("body", "Versi baru JNET-Monitor telah rilis di GitHub.")
+                    val releaseHtmlUrl = json.optString("html_url", "https://github.com/Jeriyant/JNET-Monitor-APK/releases")
+
+                    // Search for .apk asset download URL if available
+                    var apkDownloadUrl = releaseHtmlUrl
+                    val assets = json.optJSONArray("assets")
+                    if (assets != null) {
+                        for (i in 0 until assets.length()) {
+                            val asset = assets.getJSONObject(i)
+                            val name = asset.optString("name", "")
+                            if (name.endsWith(".apk", ignoreCase = true)) {
+                                apkDownloadUrl = asset.optString("browser_download_url", releaseHtmlUrl)
+                                break
+                            }
+                        }
+                    }
+
+                    val latestVersion = cleanVersion(rawTag)
+                    val currentVersion = getCurrentVersion()
+
+                    runOnUiThread {
+                        if (isNewerVersion(currentVersion, latestVersion)) {
+                            showUpdateAvailableDialog(latestVersion, releaseNotes, apkDownloadUrl)
+                        } else if (isManual) {
+                            showLatestVersionDialog(currentVersion)
+                        }
+                    }
+                } else if (isManual) {
+                    runOnUiThread {
+                        Toast.makeText(this, getString(R.string.update_error), Toast.LENGTH_SHORT).show()
+                    }
+                }
+            } catch (e: Exception) {
+                if (isManual) {
+                    runOnUiThread {
+                        Toast.makeText(this, "${getString(R.string.update_error)} (${e.localizedMessage})", Toast.LENGTH_LONG).show()
+                    }
+                }
+            }
+        }
+    }
+
+    private fun getCurrentVersion(): String {
+        return try {
+            val pInfo = packageManager.getPackageInfo(packageName, 0)
+            pInfo.versionName ?: "1.0.0"
+        } catch (e: Exception) {
+            "1.0.0"
+        }
+    }
+
+    private fun cleanVersion(version: String): String {
+        var v = version.trim()
+        if (v.startsWith("v", ignoreCase = true)) {
+            v = v.substring(1)
+        }
+        return v
+    }
+
+    private fun isNewerVersion(current: String, latest: String): Boolean {
+        if (latest.isEmpty()) return false
+        val currParts = cleanVersion(current).split(".")
+        val latestParts = cleanVersion(latest).split(".")
+        
+        val maxLen = maxOf(currParts.size, latestParts.size)
+        for (i in 0 until maxLen) {
+            val currNum = currParts.getOrNull(i)?.toIntOrNull() ?: 0
+            val latestNum = latestParts.getOrNull(i)?.toIntOrNull() ?: 0
+            if (latestNum > currNum) return true
+            if (latestNum < currNum) return false
+        }
+        return false
+    }
+
+    private fun showUpdateAvailableDialog(latestVersion: String, releaseNotes: String, downloadUrl: String) {
+        MaterialAlertDialogBuilder(this)
+            .setTitle("${getString(R.string.update_available_title)} (v$latestVersion)")
+            .setMessage("Catatan Rilis:\n\n$releaseNotes")
+            .setPositiveButton(getString(R.string.update_btn_download)) { _, _ ->
+                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(downloadUrl))
+                startActivity(intent)
+            }
+            .setNegativeButton(getString(R.string.update_btn_later)) { d, _ -> d.dismiss() }
+            .setCancelable(true)
+            .show()
+    }
+
+    private fun showLatestVersionDialog(currentVersion: String) {
+        MaterialAlertDialogBuilder(this)
+            .setTitle(getString(R.string.update_latest_title))
+            .setMessage("${getString(R.string.update_latest_msg)}\nVersi saat ini: v$currentVersion")
+            .setPositiveButton("OK") { d, _ -> d.dismiss() }
+            .show()
     }
 
     // ==========================================

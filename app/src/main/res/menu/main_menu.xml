@@ -21,6 +21,12 @@
         app:showAsAction="never" />
 
     <item
+        android:id="@+id/action_check_update"
+        android:icon="@drawable/ic_update"
+        android:title="@string/menu_check_update"
+        app:showAsAction="never" />
+
+    <item
         android:id="@+id/action_exit"
         android:icon="@drawable/ic_exit"
         android:title="@string/menu_exit"

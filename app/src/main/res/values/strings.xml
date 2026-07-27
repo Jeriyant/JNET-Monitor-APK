@@ -5,7 +5,17 @@
     <string name="menu_reload">Muat Ulang</string>
     <string name="menu_print">Cetak Halaman</string>
     <string name="menu_settings">Pengaturan URL</string>
+    <string name="menu_check_update">Cek Pembaruan</string>
     <string name="menu_exit">Keluar</string>
+
+    <!-- Update Strings -->
+    <string name="update_checking">Memeriksa pembaruan...</string>
+    <string name="update_available_title">Pembaruan Tersedia!</string>
+    <string name="update_latest_title">Aplikasi Sudah Terbaru</string>
+    <string name="update_latest_msg">Anda menggunakan JNET-Monitor versi terbaru.</string>
+    <string name="update_btn_download">Unduh Update</string>
+    <string name="update_btn_later">Nanti Saja</string>
+    <string name="update_error">Gagal memeriksa pembaruan. Periksa koneksi internet.</string>
 
     <!-- Settings Dialog -->
     <string name="dialog_settings_title">Pengaturan URL Default</string>
