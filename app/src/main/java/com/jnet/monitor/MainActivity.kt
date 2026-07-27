@@ -110,10 +110,10 @@ class MainActivity : AppCompatActivity() {
             builtInZoomControls = true
             displayZoomControls = false
             loadWithOverviewMode = true
-            useWideViewPort = false // Match Chrome Mobile Viewport (window.innerWidth < 800)
+            useWideViewPort = false // Match Chrome Mobile Viewport
             setSupportMultipleWindows(true)
             javaScriptCanOpenWindowsAutomatically = true
-            userAgentString = userAgentString + " JNETMonitorApp/2.2"
+            userAgentString = userAgentString + " JNETMonitorApp/2.3"
         }
     }
 
@@ -242,7 +242,7 @@ class MainActivity : AppCompatActivity() {
         window.print._jnetBridge = true;
     }
 
-    // 2. Hook and bridge sendToQuickPrinterChrome directly
+    // 2. Direct override for sendToQuickPrinterChrome to bypass Chromium V8 SyntaxError on location.href
     function patchQuickPrinter() {
         if (window.$JS_PRINT_INTERFACE) {
             window.sendToQuickPrinterChrome = function() {
@@ -252,16 +252,13 @@ class MainActivity : AppCompatActivity() {
                         cmds = commandsToPrint;
                     }
                 } catch(e) {}
-                
-                var textEncoded = encodeURI(cmds);
-                var intentUrl = "intent://" + textEncoded + "#Intent;scheme=quickprinter;package=$QUICKPRINTER_PACKAGE;end;";
-                window.$JS_PRINT_INTERFACE.sendIntent(intentUrl);
+                window.$JS_PRINT_INTERFACE.sendIntent(cmds);
             };
         }
     }
 
     patchQuickPrinter();
-    setInterval(patchQuickPrinter, 200);
+    setInterval(patchQuickPrinter, 250);
 
     // 3. Patch jQuery AJAX headers to send X-Requested-With: XMLHttpRequest
     if (window.jQuery) {
@@ -294,96 +291,81 @@ class MainActivity : AppCompatActivity() {
     }
 
     fun launchIntent(url: String, targetWebView: WebView?): Boolean {
-        if (url.startsWith("intent://") || url.contains("scheme=quickprinter") || url.contains("package=$QUICKPRINTER_PACKAGE") || url.startsWith("quickprinter:") || url.startsWith("rawbt:")) {
-            
-            // Extract raw payload text
-            var payload = url
-            if (payload.startsWith("intent://")) {
-                val hashIdx = payload.indexOf("#Intent;")
-                payload = if (hashIdx != -1) {
-                    payload.substring("intent://".length, hashIdx)
-                } else {
-                    payload.substring("intent://".length)
-                }
-            } else if (payload.startsWith("quickprinter://")) {
-                payload = payload.substring("quickprinter://".length)
-            } else if (payload.startsWith("rawbt:")) {
-                payload = payload.substring("rawbt:".length)
+        // Extract raw payload text
+        var payload = url
+        if (payload.startsWith("intent://")) {
+            val hashIdx = payload.indexOf("#Intent;")
+            payload = if (hashIdx != -1) {
+                payload.substring("intent://".length, hashIdx)
+            } else {
+                payload.substring("intent://".length)
             }
-
-            try {
-                payload = URLDecoder.decode(payload, "UTF-8")
-            } catch (e: Exception) {}
-
-            val encodedPayload = Uri.encode(payload)
-
-            // Method 1: Direct quickprinter:// intent to QuickPrinter app
-            try {
-                val intent = Intent(Intent.ACTION_VIEW, Uri.parse("quickprinter://$encodedPayload")).apply {
-                    setPackage(QUICKPRINTER_PACKAGE)
-                    addCategory(Intent.CATEGORY_BROWSABLE)
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                }
-                startActivity(intent)
-                return true
-            } catch (e: Exception) {}
-
-            // Method 2: Direct rawbt: intent to RawBT app (ru.a402d.rawbtprinter)
-            try {
-                val intent = Intent(Intent.ACTION_VIEW, Uri.parse("rawbt:$encodedPayload")).apply {
-                    setPackage(RAWBT_PACKAGE)
-                    addCategory(Intent.CATEGORY_BROWSABLE)
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                }
-                startActivity(intent)
-                return true
-            } catch (e: Exception) {}
-
-            // Method 3: Intent.parseUri
-            try {
-                val intent = Intent.parseUri(url, Intent.URI_INTENT_SCHEME).apply {
-                    addCategory(Intent.CATEGORY_BROWSABLE)
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                }
-                startActivity(intent)
-                return true
-            } catch (e: Exception) {}
-
-            // Method 4: Launch QuickPrinter app directly
-            try {
-                val launchIntent = packageManager.getLaunchIntentForPackage(QUICKPRINTER_PACKAGE)
-                if (launchIntent != null) {
-                    launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    startActivity(launchIntent)
-                    return true
-                }
-            } catch (e: Exception) {}
-
-            // Method 5: Launch RawBT app directly
-            try {
-                val launchIntent = packageManager.getLaunchIntentForPackage(RAWBT_PACKAGE)
-                if (launchIntent != null) {
-                    launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    startActivity(launchIntent)
-                    return true
-                }
-            } catch (e: Exception) {}
-
-            // Method 6: Fallback to System Print
-            printWebPage(targetWebView)
-            return true
+        } else if (payload.startsWith("quickprinter://")) {
+            payload = payload.substring("quickprinter://".length)
+        } else if (payload.startsWith("rawbt:")) {
+            payload = payload.substring("rawbt:".length)
         }
 
-        // External apps (tel:, mailto:, whatsapp:, etc.)
-        return try {
-            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
+        try {
+            payload = URLDecoder.decode(payload, "UTF-8")
+        } catch (e: Exception) {}
+
+        val encodedPayload = Uri.encode(payload)
+
+        // Method 1: Direct quickprinter:// intent to QuickPrinter app
+        try {
+            val intent = Intent(Intent.ACTION_VIEW, Uri.parse("quickprinter://$encodedPayload")).apply {
+                setPackage(QUICKPRINTER_PACKAGE)
+                addCategory(Intent.CATEGORY_BROWSABLE)
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            })
-            true
-        } catch (e: Exception) {
-            Toast.makeText(this, "Aplikasi tidak ditemukan", Toast.LENGTH_SHORT).show()
-            true
-        }
+            }
+            startActivity(intent)
+            return true
+        } catch (e: Exception) {}
+
+        // Method 2: Direct rawbt: intent to RawBT app (ru.a402d.rawbtprinter)
+        try {
+            val intent = Intent(Intent.ACTION_VIEW, Uri.parse("rawbt:$encodedPayload")).apply {
+                setPackage(RAWBT_PACKAGE)
+                addCategory(Intent.CATEGORY_BROWSABLE)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            startActivity(intent)
+            return true
+        } catch (e: Exception) {}
+
+        // Method 3: Intent without explicit package restriction
+        try {
+            val intent = Intent(Intent.ACTION_VIEW, Uri.parse("quickprinter://$encodedPayload")).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            startActivity(intent)
+            return true
+        } catch (e: Exception) {}
+
+        // Method 4: Direct package launch intent
+        try {
+            val launchIntent = packageManager.getLaunchIntentForPackage(QUICKPRINTER_PACKAGE)
+            if (launchIntent != null) {
+                launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                startActivity(launchIntent)
+                return true
+            }
+        } catch (e: Exception) {}
+
+        // Method 5: Launch RawBT app directly
+        try {
+            val launchIntent = packageManager.getLaunchIntentForPackage(RAWBT_PACKAGE)
+            if (launchIntent != null) {
+                launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                startActivity(launchIntent)
+                return true
+            }
+        } catch (e: Exception) {}
+
+        // Method 6: Fallback to System Print
+        printWebPage(targetWebView)
+        return true
     }
 
     // ==========================================
@@ -557,8 +539,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun getCurrentVersion() = try {
-        packageManager.getPackageInfo(packageName, 0).versionName ?: "2.2.0"
-    } catch (e: Exception) { "2.2.0" }
+        packageManager.getPackageInfo(packageName, 0).versionName ?: "2.3.0"
+    } catch (e: Exception) { "2.3.0" }
 
     private fun cleanVersion(v: String) = v.trim().trimStart('v', 'V')
 
