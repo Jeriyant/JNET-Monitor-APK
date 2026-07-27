@@ -193,7 +193,7 @@ class MainActivity : AppCompatActivity() {
             val builder = PrintAttributes.Builder()
             builder.setMediaSize(PrintAttributes.MediaSize.ISO_A4)
             builder.setResolution(PrintAttributes.Resolution("id", "pdf", 300, 300))
-            builder.setMinMargins(PrintAttributes.Margins.ZERO)
+            builder.setMinMargins(PrintAttributes.Margins(0, 0, 0, 0))
 
             printManager.print(jobName, printAdapter, builder.build())
         } catch (e: Exception) {
