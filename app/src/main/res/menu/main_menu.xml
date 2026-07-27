@@ -27,9 +27,9 @@
         app:showAsAction="never" />
 
     <item
-        android:id="@+id/action_check_update"
-        android:icon="@drawable/ic_update"
-        android:title="@string/menu_check_update"
+        android:id="@+id/action_printer_driver"
+        android:icon="@drawable/ic_print"
+        android:title="@string/menu_printer_driver"
         app:showAsAction="never" />
 
     <item

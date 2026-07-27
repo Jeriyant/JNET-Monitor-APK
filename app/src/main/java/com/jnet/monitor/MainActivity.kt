@@ -36,6 +36,7 @@ import androidx.core.content.ContextCompat
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.jnet.monitor.databinding.ActivityMainBinding
 import com.jnet.monitor.databinding.DialogAboutBinding
+import com.jnet.monitor.databinding.DialogPrinterDriverBinding
 import com.jnet.monitor.databinding.DialogSettingsBinding
 import org.json.JSONArray
 import org.json.JSONObject
@@ -62,6 +63,11 @@ class MainActivity : AppCompatActivity() {
         private const val QUICKPRINTER_PACKAGE = "pe.diegoveloper.printerserverapp"
         private const val RAWBT_PACKAGE = "ru.a402d.rawbtprinter"
         private const val MAX_HISTORY_ITEMS = 30
+
+        // Printer Driver Download URLs
+        private const val URL_DRIVER_QUICKPRINTER = "http://jeriyant.my.id/.DriverPrinterBT/QuickPrinter_v1.4.8_full.apk"
+        private const val URL_DRIVER_RAWBT = "http://jeriyant.my.id/.DriverPrinterBT/RAWBT_v_6.0.7_Full.apk"
+        private const val URL_DRIVER_PRINTERSHARE = "http://jeriyant.my.id/.DriverPrinterBT/PrinterShare v12.24.5-PREMIUM.apk"
     }
 
     private val requestPermissionLauncher = registerForActivityResult(
@@ -122,7 +128,7 @@ class MainActivity : AppCompatActivity() {
             useWideViewPort = false // Match Chrome Mobile Viewport
             setSupportMultipleWindows(true)
             javaScriptCanOpenWindowsAutomatically = true
-            userAgentString = userAgentString + " JNETMonitorApp/2.5"
+            userAgentString = userAgentString + " JNETMonitorApp/2.6"
         }
     }
 
@@ -483,7 +489,6 @@ class MainActivity : AppCompatActivity() {
             val array = JSONArray(historyJson)
             val time = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault()).format(Date())
 
-            // Don't add duplicate if same as most recent
             if (array.length() > 0) {
                 val lastObj = array.getJSONObject(0)
                 if (lastObj.optString("url") == url) return
@@ -571,17 +576,62 @@ class MainActivity : AppCompatActivity() {
     }
 
     // ==========================================
-    // About Dialog
+    // Printer Driver Dialog
+    // ==========================================
+
+    private fun openExternalDownload(url: String) {
+        try {
+            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            })
+        } catch (e: Exception) {
+            Toast.makeText(this, "Gagal membuka link unduhan", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun showPrinterDriverDialog() {
+        val dialogBinding = DialogPrinterDriverBinding.inflate(LayoutInflater.from(this))
+
+        dialogBinding.btnDownloadQuickPrinter.setOnClickListener {
+            openExternalDownload(URL_DRIVER_QUICKPRINTER)
+        }
+
+        dialogBinding.btnDownloadRawbt.setOnClickListener {
+            openExternalDownload(URL_DRIVER_RAWBT)
+        }
+
+        dialogBinding.btnDownloadPrinterShare.setOnClickListener {
+            openExternalDownload(URL_DRIVER_PRINTERSHARE)
+        }
+
+        MaterialAlertDialogBuilder(this)
+            .setTitle(getString(R.string.printer_driver_title))
+            .setView(dialogBinding.root)
+            .setPositiveButton("Tutup") { d, _ -> d.dismiss() }
+            .show()
+    }
+
+    // ==========================================
+    // About Dialog (with Check Updates button & Creator info)
     // ==========================================
 
     private fun showAboutDialog() {
         val dialogBinding = DialogAboutBinding.inflate(LayoutInflater.from(this))
         dialogBinding.tvAboutVersion.text = "Versi ${getCurrentVersion()}"
 
-        MaterialAlertDialogBuilder(this)
+        var aboutDialog: androidx.appcompat.app.AlertDialog? = null
+
+        dialogBinding.btnCheckUpdateAbout.setOnClickListener {
+            aboutDialog?.dismiss()
+            checkForUpdates(isManual = true)
+        }
+
+        aboutDialog = MaterialAlertDialogBuilder(this)
             .setView(dialogBinding.root)
-            .setPositiveButton("OK") { d, _ -> d.dismiss() }
-            .show()
+            .setPositiveButton("Tutup") { d, _ -> d.dismiss() }
+            .create()
+
+        aboutDialog.show()
     }
 
     // ==========================================
@@ -639,7 +689,7 @@ class MainActivity : AppCompatActivity() {
             R.id.action_print -> { printWebPage(binding.webView); true }
             R.id.action_history -> { showHistoryDialog(); true }
             R.id.action_settings -> { showSettingsDialog(); true }
-            R.id.action_check_update -> { checkForUpdates(isManual = true); true }
+            R.id.action_printer_driver -> { showPrinterDriverDialog(); true }
             R.id.action_about -> { showAboutDialog(); true }
             R.id.action_exit -> { finish(); true }
             else -> super.onOptionsItemSelected(item)
@@ -654,7 +704,6 @@ class MainActivity : AppCompatActivity() {
         val activeUrl = binding.webView.url ?: currentUrl
         dialogBinding.tvCurrentUrl.text = "URL Saat Ini: $activeUrl"
 
-        // "Set ke URL Saat Ini" button functionality
         dialogBinding.btnSetCurrentUrl.setOnClickListener {
             val liveUrl = binding.webView.url
             if (!liveUrl.isNullOrEmpty()) {
@@ -748,8 +797,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun getCurrentVersion() = try {
-        packageManager.getPackageInfo(packageName, 0).versionName ?: "2.5.0"
-    } catch (e: Exception) { "2.5.0" }
+        packageManager.getPackageInfo(packageName, 0).versionName ?: "2.6.0"
+    } catch (e: Exception) { "2.6.0" }
 
     private fun cleanVersion(v: String) = v.trim().trimStart('v', 'V')
 
@@ -766,10 +815,6 @@ class MainActivity : AppCompatActivity() {
         return false
     }
 
-    /**
-     * Force Update Dialog: Removed "Nanti Saja" button and set cancelable=false
-     * so user MUST update to continue using the app.
-     */
     private fun showUpdateDialog(ver: String, notes: String, url: String) {
         MaterialAlertDialogBuilder(this)
             .setTitle("${getString(R.string.update_available_title)} (v$ver)")

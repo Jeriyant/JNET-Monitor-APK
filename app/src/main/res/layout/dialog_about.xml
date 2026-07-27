@@ -27,7 +27,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="2dp"
-        android:text="Versi 2.5.0"
+        android:text="Versi 2.6.0"
         android:textColor="@color/accent"
         android:textSize="14sp"
         android:textStyle="bold" />
@@ -35,8 +35,8 @@
     <View
         android:layout_width="match_parent"
         android:layout_height="1dp"
-        android:layout_marginTop="16dp"
-        android:layout_marginBottom="16dp"
+        android:layout_marginTop="14dp"
+        android:layout_marginBottom="14dp"
         android:background="@color/divider" />
 
     <!-- Creator Info -->
@@ -68,11 +68,22 @@
     <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:text="@string/about_desc"
+        android:layout_marginTop="6dp"
+        android:text="@string/about_desc_detail"
         android:textColor="@color/text_secondary"
-        android:textSize="13sp"
+        android:textSize="12.5sp"
         android:gravity="center"
-        android:lineSpacingExtra="2dp" />
+        android:lineSpacingExtra="3dp" />
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btnCheckUpdateAbout"
+        style="@style/Widget.Material3.Button.TonalButton"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="18dp"
+        android:text="@string/menu_check_update"
+        android:textColor="@color/accent"
+        app:icon="@drawable/ic_update"
+        app:iconTint="@color/accent" />
 
 </LinearLayout>
