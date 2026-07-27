@@ -87,7 +87,7 @@ class MainActivity : AppCompatActivity() {
             useWideViewPort = true
             setSupportMultipleWindows(true)
             javaScriptCanOpenWindowsAutomatically = true
-            userAgentString = userAgentString + " JNETMonitorApp/1.3"
+            userAgentString = userAgentString + " JNETMonitorApp/1.4"
         }
     }
 
@@ -115,7 +115,7 @@ class MainActivity : AppCompatActivity() {
                 }
             }
 
-            // Handle window.open(...) and target="_blank" popups used by Mikhmon / JNET-MONITOR voucher print
+            // Handle window.open(...) and target="_blank" popups used by Quick Print & Mikhmon / JNET-MONITOR voucher print
             override fun onCreateWindow(
                 view: WebView?,
                 isDialog: Boolean,
@@ -142,6 +142,10 @@ class MainActivity : AppCompatActivity() {
                     override fun onPageFinished(v: WebView?, url: String?) {
                         super.onPageFinished(v, url)
                         injectPrintJavaScript(v)
+                        // Trigger native printing when voucher print page completes loading
+                        if (url != null && (url.contains("print.php") || url.contains("vpreview.php") || url.contains("quickuser.php") || url.contains("printbt.php"))) {
+                            printWebPage(v)
+                        }
                     }
                 }
 
@@ -170,6 +174,10 @@ class MainActivity : AppCompatActivity() {
 
                 // Inject window.print() polyfill so any site's print action triggers native Android printing
                 injectPrintJavaScript(view)
+                
+                if (url != null && (url.contains("print.php") || url.contains("vpreview.php") || url.contains("quickuser.php"))) {
+                    printWebPage(view)
+                }
             }
 
             override fun onReceivedError(
@@ -203,34 +211,49 @@ class MainActivity : AppCompatActivity() {
                     val packageManager = packageManager
                     val info = packageManager.resolveActivity(intent, 0)
                     if (info != null) {
+                        // Bluetooth Printer App (QuickPrinter/RawBT) is installed -> launch it!
                         startActivity(intent)
                     } else {
-                        // Fallback to market/playstore package if app not installed
+                        // QuickPrinter is not installed -> Fallback to Native System Print
                         val fallbackUrl = intent.getStringExtra("browser_fallback_url")
                         if (fallbackUrl != null) {
                             targetWebView?.loadUrl(fallbackUrl)
                         } else {
-                            val packageName = intent.getPackage()
-                            if (packageName != null) {
-                                startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=$packageName")))
-                            }
+                            // Automatically print via native Android PrintManager when printer app is missing
+                            printWebPage(targetWebView)
                         }
                     }
                     return true
                 }
             } catch (e: Exception) {
-                Toast.makeText(this, "Gagal memproses tautan cetak: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
+                printWebPage(targetWebView)
                 return true
             }
         }
 
-        // Handle external apps & printer schemes (rawbt:, tel:, mailto:, whatsapp:)
+        // Handle Bluetooth printer schemes (rawbt:, quickprinter:)
+        if (url.startsWith("rawbt:") || url.startsWith("quickprinter:")) {
+            try {
+                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                if (intent.resolveActivity(packageManager) != null) {
+                    startActivity(intent)
+                } else {
+                    printWebPage(targetWebView)
+                }
+                return true
+            } catch (e: Exception) {
+                printWebPage(targetWebView)
+                return true
+            }
+        }
+
+        // External apps (tel:, mailto:, whatsapp:)
         return try {
             val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
             startActivity(intent)
             true
         } catch (e: Exception) {
-            Toast.makeText(this, "Aplikasi pencetak/tautan tidak ditemukan", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "Aplikasi tidak ditemukan", Toast.LENGTH_SHORT).show()
             true
         }
     }
@@ -453,9 +476,9 @@ class MainActivity : AppCompatActivity() {
     private fun getCurrentVersion(): String {
         return try {
             val pInfo = packageManager.getPackageInfo(packageName, 0)
-            pInfo.versionName ?: "1.3.0"
+            pInfo.versionName ?: "1.4.0"
         } catch (e: Exception) {
-            "1.3.0"
+            "1.4.0"
         }
     }
 
