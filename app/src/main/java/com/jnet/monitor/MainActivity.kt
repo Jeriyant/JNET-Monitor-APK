@@ -83,10 +83,10 @@ class MainActivity : AppCompatActivity() {
             builtInZoomControls = true
             displayZoomControls = false
             loadWithOverviewMode = true
-            useWideViewPort = true
+            useWideViewPort = false // Disabled wide viewport so window.innerWidth matches mobile screen (w < 800), exactly like Chrome Mobile!
             setSupportMultipleWindows(true)
             javaScriptCanOpenWindowsAutomatically = true
-            userAgentString = userAgentString + " JNETMonitorApp/1.8"
+            userAgentString = userAgentString + " JNETMonitorApp/1.9"
         }
     }
 
@@ -122,6 +122,11 @@ class MainActivity : AppCompatActivity() {
                 )
 
                 popupWebView.webViewClient = object : WebViewClient() {
+                    @Suppress("OVERRIDE_DEPRECATION")
+                    override fun shouldOverrideUrlLoading(v: WebView?, url: String?): Boolean {
+                        return dispatchUrl(url ?: "", v)
+                    }
+
                     override fun shouldOverrideUrlLoading(v: WebView?, request: WebResourceRequest?): Boolean {
                         val url = request?.url?.toString() ?: return false
                         return dispatchUrl(url, v)
@@ -146,6 +151,11 @@ class MainActivity : AppCompatActivity() {
         }
 
         binding.webView.webViewClient = object : WebViewClient() {
+            @Suppress("OVERRIDE_DEPRECATION")
+            override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
+                return dispatchUrl(url ?: "", view)
+            }
+
             override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
                 val url = request?.url?.toString() ?: return false
                 return dispatchUrl(url, view)
@@ -180,28 +190,24 @@ class MainActivity : AppCompatActivity() {
         url != null && (url.contains("print.php") || url.contains("vpreview.php") || url.contains("quickuser.php"))
 
     // ==========================================
-    // JS Bridge Script — the KEY fix for Quick Print
+    // JS Bridge Script
     // ==========================================
 
     private fun injectBridgeScript(targetWebView: WebView? = binding.webView) {
-        // Language: JavaScript
-        // This script does THREE things:
-        //
-        // 1. Override window.print() → calls native AndroidPrintInterface.print()
-        //
-        // 2. CRITICAL: Intercept window.location.href setter via Object.defineProperty
-        //    sendToQuickPrinterChrome() in printbt.php does:
-        //       window.location.href = "intent://...#Intent;scheme=quickprinter;..."
-        //    Android WebView's shouldOverrideUrlLoading() is NEVER called for JS property assignment,
-        //    only for real navigations. So we must intercept here in JS and hand off to native bridge.
-        //
-        // 3. Inject X-Requested-With header into all jQuery AJAX requests
-        //    quickuser.php checks HTTP_X_REQUESTED_WITH to decide whether to send BT print script.
-        //    Android WebView does NOT send this header automatically, causing server to always redirect.
-
         val js = """
 (function() {
-    // ─── 1. Override window.print() ───────────────────────────────────────────
+    // 0. Polyfill window.innerWidth so quickuser.php checks (w < 800) evaluate to TRUE on mobile
+    try {
+        var screenW = window.screen ? window.screen.width : 360;
+        if (screenW < 800) {
+            Object.defineProperty(window, 'innerWidth', {
+                get: function() { return screenW; },
+                configurable: true
+            });
+        }
+    } catch(e) {}
+
+    // 1. Override window.print()
     if (!window.print || !window.print._jnetBridge) {
         var _origPrint = window.print;
         window.print = function() {
@@ -214,10 +220,7 @@ class MainActivity : AppCompatActivity() {
         window.print._jnetBridge = true;
     }
 
-    // ─── 2. Intercept window.location.href setter ────────────────────────────
-    // sendToQuickPrinterChrome() in printbt.php does:
-    //   window.location.href = "intent://...#Intent;scheme=quickprinter;..."
-    // We intercept this assignment and route to native Android bridge.
+    // 2. Intercept window.location.href setter for intent://, quickprinter:, rawbt:
     if (!window._jnetLocationPatched) {
         try {
             var _locProto = window.location;
@@ -233,9 +236,10 @@ class MainActivity : AppCompatActivity() {
                         if (url && (
                             url.indexOf('intent://') === 0 ||
                             url.indexOf('quickprinter:') === 0 ||
-                            url.indexOf('rawbt:') === 0
+                            url.indexOf('rawbt:') === 0 ||
+                            url.indexOf('scheme=quickprinter') !== -1 ||
+                            url.indexOf('package=$QUICKPRINTER_PACKAGE') !== -1
                         )) {
-                            // Route intent URL to native Android bridge
                             if (window.$JS_PRINT_INTERFACE && window.$JS_PRINT_INTERFACE.sendIntent) {
                                 window.$JS_PRINT_INTERFACE.sendIntent(url);
                                 return;
@@ -246,21 +250,15 @@ class MainActivity : AppCompatActivity() {
                 });
                 window._jnetLocationPatched = true;
             }
-        } catch(e) {
-            // Fallback: can't patch, intent:// will be handled by shouldOverrideUrlLoading
-        }
+        } catch(e) {}
     }
 
-    // ─── 3. Add X-Requested-With header to jQuery AJAX ───────────────────────
-    // quickuser.php reads HTTP_X_REQUESTED_WITH to detect AJAX vs direct nav.
-    // Android WebView does NOT send this header, so server always redirects instead
-    // of returning the Bluetooth print script. We patch jQuery $.ajaxSetup if available.
+    // 3. Patch jQuery AJAX headers to send X-Requested-With: XMLHttpRequest
     if (window.jQuery) {
         window.jQuery.ajaxSetup({
             headers: { 'X-Requested-With': 'XMLHttpRequest' }
         });
     } else {
-        // Retry after DOM ready in case jQuery hasn't loaded yet
         document.addEventListener('DOMContentLoaded', function() {
             if (window.jQuery) {
                 window.jQuery.ajaxSetup({
@@ -276,40 +274,64 @@ class MainActivity : AppCompatActivity() {
     }
 
     // ==========================================
-    // URL Dispatcher — for real navigations
+    // URL Dispatcher
     // ==========================================
 
     fun dispatchUrl(url: String, targetWebView: WebView?): Boolean {
         if (url.isEmpty()) return false
-
-        // HTTP/HTTPS stays inside WebView
         if (url.startsWith("http://") || url.startsWith("https://")) return false
-
-        // Delegate to intent launcher for custom schemes
         return launchIntent(url, targetWebView)
     }
 
     fun launchIntent(url: String, targetWebView: WebView?): Boolean {
         if (url.startsWith("intent://") || url.contains("scheme=quickprinter") || url.contains("package=$QUICKPRINTER_PACKAGE")) {
-            return try {
+            // Method 1: Try standard Intent.parseUri
+            try {
                 val intent = Intent.parseUri(url, Intent.URI_INTENT_SCHEME)
+                intent.addCategory(Intent.CATEGORY_BROWSABLE)
+                intent.setComponent(null)
+                intent.setSelector(null)
                 intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+
                 startActivity(intent)
-                true
-            } catch (e: Exception) {
-                // App not installed → try open Play Store
-                val pkg = try {
-                    Intent.parseUri(url, Intent.URI_INTENT_SCHEME).getPackage()
-                } catch (e2: Exception) { QUICKPRINTER_PACKAGE }
-                try {
-                    startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=$pkg")).apply {
-                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    })
-                } catch (e3: Exception) {
-                    printWebPage(targetWebView)
+                return true
+            } catch (e: Exception) {}
+
+            // Method 2: Manual Uri construction for QuickPrinter (quickprinter://<encodedData>)
+            try {
+                val prefix = "intent://"
+                val suffix = "#Intent;"
+                val startIndex = url.indexOf(prefix)
+                val endIndex = url.lastIndexOf(suffix)
+                val dataString = if (startIndex != -1 && endIndex > startIndex) {
+                    url.substring(startIndex + prefix.length, endIndex)
+                } else {
+                    url.replace("intent://", "").replace("#Intent;.*".toRegex(), "")
                 }
-                true
-            }
+
+                val qpIntent = Intent(Intent.ACTION_VIEW, Uri.parse("quickprinter://$dataString")).apply {
+                    setPackage(QUICKPRINTER_PACKAGE)
+                    addCategory(Intent.CATEGORY_BROWSABLE)
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                startActivity(qpIntent)
+                return true
+            } catch (e: Exception) {}
+
+            // Method 3: Direct package launch intent for QuickPrinter
+            try {
+                val launchIntent = packageManager.getLaunchIntentForPackage(QUICKPRINTER_PACKAGE)
+                if (launchIntent != null) {
+                    launchIntent.putExtra("data", url)
+                    launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    startActivity(launchIntent)
+                    return true
+                }
+            } catch (e: Exception) {}
+
+            // Method 4: Fallback to System Print
+            printWebPage(targetWebView)
+            return true
         }
 
         if (url.startsWith("rawbt:") || url.startsWith("quickprinter:")) {
@@ -337,7 +359,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     // ==========================================
-    // Native Print (WebView → PrintManager)
+    // Native Print
     // ==========================================
 
     fun printWebPage(targetWebView: WebView? = binding.webView) {
@@ -365,7 +387,6 @@ class MainActivity : AppCompatActivity() {
         private val activity: MainActivity,
         private val webView: WebView
     ) {
-        /** Called by window.print() polyfill */
         @JavascriptInterface
         fun nativePrint() {
             activity.runOnUiThread {
@@ -373,11 +394,6 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        /**
-         * Called by our window.location.href intercept when JS assigns an intent:// URL.
-         * This is the KEY fix — shouldOverrideUrlLoading never fires for JS property
-         * assignment, so we intercept at the JS level and hand off here on the UI thread.
-         */
         @JavascriptInterface
         fun sendIntent(url: String) {
             activity.runOnUiThread {
@@ -513,8 +529,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun getCurrentVersion() = try {
-        packageManager.getPackageInfo(packageName, 0).versionName ?: "1.8.0"
-    } catch (e: Exception) { "1.8.0" }
+        packageManager.getPackageInfo(packageName, 0).versionName ?: "1.9.0"
+    } catch (e: Exception) { "1.9.0" }
 
     private fun cleanVersion(v: String) = v.trim().trimStart('v', 'V')
 
