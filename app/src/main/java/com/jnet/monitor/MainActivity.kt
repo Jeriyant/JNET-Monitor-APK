@@ -136,7 +136,7 @@ class MainActivity : AppCompatActivity() {
             useWideViewPort = false // Match Chrome Mobile Viewport
             setSupportMultipleWindows(true)
             javaScriptCanOpenWindowsAutomatically = true
-            userAgentString = userAgentString + " JNETMonitorApp/2.8"
+            userAgentString = userAgentString + " JNETMonitorApp/2.9"
         }
 
         // Native Android Force Dark Mode for WebView content if system is in Dark Mode
@@ -172,43 +172,88 @@ class MainActivity : AppCompatActivity() {
                 }
             }
 
+            /**
+             * Robust, Crash-Proof New Tab / Popup Window Handler
+             */
             override fun onCreateWindow(
                 view: WebView?, isDialog: Boolean, isUserGesture: Boolean, resultMsg: Message?
             ): Boolean {
-                val popupWebView = WebView(this@MainActivity)
-                configureWebSettings(popupWebView.settings)
-                popupWebView.setBackgroundColor(wvBg)
-                popupWebView.addJavascriptInterface(
-                    WebAppInterface(this@MainActivity, popupWebView), JS_PRINT_INTERFACE
-                )
+                try {
+                    val result = view?.hitTestResult
+                    val url = result?.extra
 
-                popupWebView.webViewClient = object : WebViewClient() {
-                    @Suppress("OVERRIDE_DEPRECATION")
-                    override fun shouldOverrideUrlLoading(v: WebView?, url: String?): Boolean {
-                        return dispatchUrl(url ?: "", v)
+                    // 1. Direct HitTestResult URL capture
+                    if (!url.isNullOrEmpty()) {
+                        if (url.startsWith("http://") || url.startsWith("https://")) {
+                            binding.webView.loadUrl(url)
+                        } else {
+                            dispatchUrl(url, binding.webView)
+                        }
+                        return true
                     }
 
-                    override fun shouldOverrideUrlLoading(v: WebView?, request: WebResourceRequest?): Boolean {
-                        val url = request?.url?.toString() ?: return false
-                        return dispatchUrl(url, v)
+                    // 2. Transport Helper WebView for window.open() & target="_blank"
+                    val popupWebView = WebView(this@MainActivity)
+                    configureWebSettings(popupWebView.settings)
+                    popupWebView.setBackgroundColor(wvBg)
+
+                    popupWebView.addJavascriptInterface(
+                        WebAppInterface(this@MainActivity, binding.webView), JS_PRINT_INTERFACE
+                    )
+
+                    popupWebView.webViewClient = object : WebViewClient() {
+                        @Suppress("OVERRIDE_DEPRECATION")
+                        override fun shouldOverrideUrlLoading(v: WebView?, targetUrl: String?): Boolean {
+                            if (!targetUrl.isNullOrEmpty()) {
+                                if (targetUrl.startsWith("http://") || targetUrl.startsWith("https://")) {
+                                    binding.webView.loadUrl(targetUrl)
+                                } else {
+                                    dispatchUrl(targetUrl, binding.webView)
+                                }
+                            }
+                            try { v?.destroy() } catch (e: Exception) {}
+                            return true
+                        }
+
+                        override fun shouldOverrideUrlLoading(v: WebView?, request: WebResourceRequest?): Boolean {
+                            val targetUrl = request?.url?.toString()
+                            if (!targetUrl.isNullOrEmpty()) {
+                                if (targetUrl.startsWith("http://") || targetUrl.startsWith("https://")) {
+                                    binding.webView.loadUrl(targetUrl)
+                                } else {
+                                    dispatchUrl(targetUrl, binding.webView)
+                                }
+                            }
+                            try { v?.destroy() } catch (e: Exception) {}
+                            return true
+                        }
+
+                        override fun onPageFinished(v: WebView?, targetUrl: String?) {
+                            super.onPageFinished(v, targetUrl)
+                            if (!targetUrl.isNullOrEmpty()) {
+                                injectBridgeScript(binding.webView)
+                                if (isPrintPage(targetUrl)) printWebPage(binding.webView)
+                            }
+                            try { v?.destroy() } catch (e: Exception) {}
+                        }
                     }
 
-                    override fun onPageFinished(v: WebView?, url: String?) {
-                        super.onPageFinished(v, url)
-                        injectBridgeScript(v)
-                        if (url != null) saveToHistory(v?.title ?: url, url)
-                        if (isPrintPage(url)) printWebPage(v)
+                    popupWebView.webChromeClient = object : WebChromeClient() {
+                        override fun onCloseWindow(window: WebView?) {
+                            try { window?.destroy() } catch (e: Exception) {}
+                        }
                     }
+
+                    val transport = resultMsg?.obj as? WebView.WebViewTransport
+                    if (transport != null) {
+                        transport.webView = popupWebView
+                        resultMsg.sendToTarget()
+                        return true
+                    }
+                } catch (e: Exception) {
+                    // Prevent any possible crash on unexpected window.open JS calls
                 }
-
-                popupWebView.webChromeClient = object : WebChromeClient() {
-                    override fun onCloseWindow(window: WebView?) = super.onCloseWindow(window)
-                }
-
-                val transport = resultMsg?.obj as? WebView.WebViewTransport
-                transport?.webView = popupWebView
-                resultMsg?.sendToTarget()
-                return true
+                return false
             }
         }
 
@@ -822,8 +867,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun getCurrentVersion() = try {
-        packageManager.getPackageInfo(packageName, 0).versionName ?: "2.8.0"
-    } catch (e: Exception) { "2.8.0" }
+        packageManager.getPackageInfo(packageName, 0).versionName ?: "2.9.0"
+    } catch (e: Exception) { "2.9.0" }
 
     private fun cleanVersion(v: String) = v.trim().trimStart('v', 'V')
 
