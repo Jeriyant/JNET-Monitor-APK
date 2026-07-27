@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.JNETMonitor" parent="Theme.Material3.DayNight.NoActionBar">
+        <!-- Primary brand color. -->
+        <item name="colorPrimary">@color/accent</item>
+        <item name="colorPrimaryVariant">@color/accent_light</item>
+        <item name="colorOnPrimary">@color/white</item>
+        
+        <!-- Status bar color. -->
+        <item name="android:statusBarColor">@color/primary</item>
+        <item name="android:windowLightStatusBar">false</item>
+        
+        <!-- Customize your theme here. -->
+        <item name="android:windowBackground">@color/surface_light</item>
+    </style>
+</resources>

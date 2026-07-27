@@ -1,0 +1,25 @@
+<resources>
+    <string name="app_name">JNET-Monitor v.1.0</string>
+    
+    <!-- Menu Items -->
+    <string name="menu_reload">Muat Ulang</string>
+    <string name="menu_print">Cetak Halaman</string>
+    <string name="menu_settings">Pengaturan URL</string>
+    <string name="menu_exit">Keluar</string>
+
+    <!-- Settings Dialog -->
+    <string name="dialog_settings_title">Pengaturan URL Default</string>
+    <string name="dialog_settings_desc">Masukkan URL yang akan dimuat secara otomatis saat aplikasi dibuka.</string>
+    <string name="hint_url">https://contoh-domain.com atau IP Local</string>
+    <string name="btn_save">Simpan &amp; Buka</string>
+    <string name="btn_cancel">Batal</string>
+    <string name="btn_reset_default">Reset Default</string>
+    <string name="msg_url_saved">URL default berhasil diperbarui!</string>
+    <string name="msg_invalid_url">URL tidak valid. Masukkan URL yang benar.</string>
+
+    <!-- Print & Web Info -->
+    <string name="print_job_title">JNET_Monitor_Print</string>
+    <string name="loading">Memuat halaman...</string>
+    <string name="error_loading">Gagal memuat halaman web. Periksa koneksi atau URL.</string>
+    <string name="btn_retry">Coba Lagi</string>
+</resources>
