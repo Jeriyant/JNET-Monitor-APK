@@ -113,7 +113,7 @@ class MainActivity : AppCompatActivity() {
             useWideViewPort = false // Match Chrome Mobile Viewport
             setSupportMultipleWindows(true)
             javaScriptCanOpenWindowsAutomatically = true
-            userAgentString = userAgentString + " JNETMonitorApp/2.3"
+            userAgentString = userAgentString + " JNETMonitorApp/2.4"
         }
     }
 
@@ -229,7 +229,66 @@ class MainActivity : AppCompatActivity() {
         }
     } catch(e) {}
 
-    // 1. Override window.print()
+    // 1. Override Location.prototype.href setter before V8 Chromium URL validation runs!
+    try {
+        if (window.Location && window.Location.prototype) {
+            var descriptor = Object.getOwnPropertyDescriptor(window.Location.prototype, 'href');
+            if (descriptor && descriptor.set && !window._jnetLocationProtoPatched) {
+                var origSetter = descriptor.set;
+                Object.defineProperty(window.Location.prototype, 'href', {
+                    configurable: true,
+                    enumerable: true,
+                    get: descriptor.get,
+                    set: function(val) {
+                        if (typeof val === 'string' && (
+                            val.indexOf('intent://') === 0 ||
+                            val.indexOf('quickprinter:') === 0 ||
+                            val.indexOf('rawbt:') === 0 ||
+                            val.indexOf('scheme=quickprinter') !== -1 ||
+                            val.indexOf('package=$QUICKPRINTER_PACKAGE') !== -1
+                        )) {
+                            if (window.$JS_PRINT_INTERFACE && window.$JS_PRINT_INTERFACE.sendIntent) {
+                                window.$JS_PRINT_INTERFACE.sendIntent(val);
+                                return;
+                            }
+                        }
+                        try {
+                            origSetter.call(this, val);
+                        } catch(err) {
+                            if (typeof val === 'string' && (val.indexOf('intent://') !== -1 || val.indexOf('quickprinter') !== -1)) {
+                                if (window.$JS_PRINT_INTERFACE && window.$JS_PRINT_INTERFACE.sendIntent) {
+                                    window.$JS_PRINT_INTERFACE.sendIntent(val);
+                                }
+                            }
+                        }
+                    }
+                });
+                window._jnetLocationProtoPatched = true;
+            }
+        }
+    } catch(e) {}
+
+    // 2. Global Error Event Listener to catch V8 SyntaxError on location.href assignments
+    if (!window._jnetErrorListenerAdded) {
+        window.addEventListener('error', function(event) {
+            var msg = (event && event.message) ? event.message : '';
+            if (msg.indexOf('intent://') !== -1 || msg.indexOf('quickprinter') !== -1) {
+                var start = msg.indexOf('intent://');
+                if (start === -1) start = msg.indexOf('quickprinter');
+                if (start !== -1) {
+                    var end = msg.indexOf("'", start);
+                    if (end === -1) end = msg.length;
+                    var intentUrl = msg.substring(start, end);
+                    if (window.$JS_PRINT_INTERFACE && window.$JS_PRINT_INTERFACE.sendIntent) {
+                        window.$JS_PRINT_INTERFACE.sendIntent(intentUrl);
+                    }
+                }
+            }
+        }, true);
+        window._jnetErrorListenerAdded = true;
+    }
+
+    // 3. Override window.print()
     if (!window.print || !window.print._jnetBridge) {
         var _origPrint = window.print;
         window.print = function() {
@@ -242,7 +301,7 @@ class MainActivity : AppCompatActivity() {
         window.print._jnetBridge = true;
     }
 
-    // 2. Direct override for sendToQuickPrinterChrome to bypass Chromium V8 SyntaxError on location.href
+    // 4. Hook sendToQuickPrinterChrome directly
     function patchQuickPrinter() {
         if (window.$JS_PRINT_INTERFACE) {
             window.sendToQuickPrinterChrome = function() {
@@ -252,7 +311,12 @@ class MainActivity : AppCompatActivity() {
                         cmds = commandsToPrint;
                     }
                 } catch(e) {}
-                window.$JS_PRINT_INTERFACE.sendIntent(cmds);
+                if (cmds) {
+                    window.$JS_PRINT_INTERFACE.sendIntent(cmds);
+                } else {
+                    var textEncoded = (typeof encodeURI === 'function') ? encodeURI(cmds) : "";
+                    window.$JS_PRINT_INTERFACE.sendIntent("intent://" + textEncoded + "#Intent;scheme=quickprinter;package=$QUICKPRINTER_PACKAGE;end;");
+                }
             };
         }
     }
@@ -260,7 +324,7 @@ class MainActivity : AppCompatActivity() {
     patchQuickPrinter();
     setInterval(patchQuickPrinter, 250);
 
-    // 3. Patch jQuery AJAX headers to send X-Requested-With: XMLHttpRequest
+    // 5. Patch jQuery AJAX headers to send X-Requested-With: XMLHttpRequest
     if (window.jQuery) {
         window.jQuery.ajaxSetup({
             headers: { 'X-Requested-With': 'XMLHttpRequest' }
@@ -539,8 +603,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun getCurrentVersion() = try {
-        packageManager.getPackageInfo(packageName, 0).versionName ?: "2.3.0"
-    } catch (e: Exception) { "2.3.0" }
+        packageManager.getPackageInfo(packageName, 0).versionName ?: "2.4.0"
+    } catch (e: Exception) { "2.4.0" }
 
     private fun cleanVersion(v: String) = v.trim().trimStart('v', 'V')
 
