@@ -16,7 +16,7 @@
 
     <item
         android:id="@+id/action_history"
-        android:icon="@drawable/ic_settings"
+        android:icon="@drawable/ic_history"
         android:title="@string/menu_history"
         app:showAsAction="never" />
 
@@ -28,13 +28,13 @@
 
     <item
         android:id="@+id/action_printer_driver"
-        android:icon="@drawable/ic_print"
+        android:icon="@drawable/ic_driver"
         android:title="@string/menu_printer_driver"
         app:showAsAction="never" />
 
     <item
         android:id="@+id/action_about"
-        android:icon="@drawable/ic_settings"
+        android:icon="@drawable/ic_info"
         android:title="@string/menu_about"
         app:showAsAction="never" />
 

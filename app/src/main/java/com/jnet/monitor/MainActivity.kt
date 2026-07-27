@@ -32,6 +32,7 @@ import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.view.menu.MenuBuilder
 import androidx.core.content.ContextCompat
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.jnet.monitor.databinding.ActivityMainBinding
@@ -68,6 +69,7 @@ class MainActivity : AppCompatActivity() {
         private const val URL_DRIVER_QUICKPRINTER = "http://jeriyant.my.id/.DriverPrinterBT/QuickPrinter_v1.4.8_full.apk"
         private const val URL_DRIVER_RAWBT = "http://jeriyant.my.id/.DriverPrinterBT/RAWBT_v_6.0.7_Full.apk"
         private const val URL_DRIVER_PRINTERSHARE = "http://jeriyant.my.id/.DriverPrinterBT/PrinterShare v12.24.5-PREMIUM.apk"
+        private const val URL_DRIVER_NOKOPRINT = "http://jeriyant.my.id/.DriverPrinterBT/NokoPrint v5.27.0-PREMIUM.apk"
     }
 
     private val requestPermissionLauncher = registerForActivityResult(
@@ -128,7 +130,7 @@ class MainActivity : AppCompatActivity() {
             useWideViewPort = false // Match Chrome Mobile Viewport
             setSupportMultipleWindows(true)
             javaScriptCanOpenWindowsAutomatically = true
-            userAgentString = userAgentString + " JNETMonitorApp/2.6"
+            userAgentString = userAgentString + " JNETMonitorApp/2.7"
         }
     }
 
@@ -604,6 +606,10 @@ class MainActivity : AppCompatActivity() {
             openExternalDownload(URL_DRIVER_PRINTERSHARE)
         }
 
+        dialogBinding.btnDownloadNokoPrint.setOnClickListener {
+            openExternalDownload(URL_DRIVER_NOKOPRINT)
+        }
+
         MaterialAlertDialogBuilder(this)
             .setTitle(getString(R.string.printer_driver_title))
             .setView(dialogBinding.root)
@@ -675,11 +681,15 @@ class MainActivity : AppCompatActivity() {
     }
 
     // ==========================================
-    // 3-Dot Menu
+    // 3-Dot Menu (with Icons enabled)
     // ==========================================
 
+    @SuppressLint("RestrictedApi")
     override fun onCreateOptionsMenu(menu: Menu?): Boolean {
         menuInflater.inflate(R.menu.main_menu, menu)
+        if (menu is MenuBuilder) {
+            menu.setOptionalIconsVisible(true)
+        }
         return true
     }
 
@@ -797,8 +807,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun getCurrentVersion() = try {
-        packageManager.getPackageInfo(packageName, 0).versionName ?: "2.6.0"
-    } catch (e: Exception) { "2.6.0" }
+        packageManager.getPackageInfo(packageName, 0).versionName ?: "2.7.0"
+    } catch (e: Exception) { "2.7.0" }
 
     private fun cleanVersion(v: String) = v.trim().trimStart('v', 'V')
 

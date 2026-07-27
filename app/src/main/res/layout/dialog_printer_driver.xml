@@ -19,7 +19,7 @@
         android:id="@+id/cardQuickPrinter"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginBottom="12dp"
+        android:layout_marginBottom="10dp"
         app:cardCornerRadius="10dp"
         app:cardElevation="0dp"
         app:strokeColor="@color/divider"
@@ -30,7 +30,7 @@
             android:layout_height="wrap_content"
             android:orientation="horizontal"
             android:gravity="center_vertical"
-            android:padding="14dp">
+            android:padding="12dp">
 
             <LinearLayout
                 android:layout_width="0dp"
@@ -43,7 +43,7 @@
                     android:layout_height="wrap_content"
                     android:text="Quick Printer v1.4.8"
                     android:textColor="@color/text_primary"
-                    android:textSize="15sp"
+                    android:textSize="14.5sp"
                     android:textStyle="bold" />
 
                 <TextView
@@ -73,7 +73,7 @@
         android:id="@+id/cardRawbt"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginBottom="12dp"
+        android:layout_marginBottom="10dp"
         app:cardCornerRadius="10dp"
         app:cardElevation="0dp"
         app:strokeColor="@color/divider"
@@ -84,7 +84,7 @@
             android:layout_height="wrap_content"
             android:orientation="horizontal"
             android:gravity="center_vertical"
-            android:padding="14dp">
+            android:padding="12dp">
 
             <LinearLayout
                 android:layout_width="0dp"
@@ -97,7 +97,7 @@
                     android:layout_height="wrap_content"
                     android:text="RAWBT v6.0.7 Full"
                     android:textColor="@color/text_primary"
-                    android:textSize="15sp"
+                    android:textSize="14.5sp"
                     android:textStyle="bold" />
 
                 <TextView
@@ -127,6 +127,7 @@
         android:id="@+id/cardPrinterShare"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:layout_marginBottom="10dp"
         app:cardCornerRadius="10dp"
         app:cardElevation="0dp"
         app:strokeColor="@color/divider"
@@ -137,7 +138,7 @@
             android:layout_height="wrap_content"
             android:orientation="horizontal"
             android:gravity="center_vertical"
-            android:padding="14dp">
+            android:padding="12dp">
 
             <LinearLayout
                 android:layout_width="0dp"
@@ -150,7 +151,7 @@
                     android:layout_height="wrap_content"
                     android:text="PrinterShare v12.24.5 Premium"
                     android:textColor="@color/text_primary"
-                    android:textSize="15sp"
+                    android:textSize="14.5sp"
                     android:textStyle="bold" />
 
                 <TextView
@@ -165,6 +166,59 @@
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnDownloadPrinterShare"
+                style="@style/Widget.Material3.Button.TonalButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Unduh"
+                android:textColor="@color/accent" />
+
+        </LinearLayout>
+
+    </com.google.android.material.card.MaterialCardView>
+
+    <!-- Item 4: NokoPrint -->
+    <com.google.android.material.card.MaterialCardView
+        android:id="@+id/cardNokoPrint"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        app:cardCornerRadius="10dp"
+        app:cardElevation="0dp"
+        app:strokeColor="@color/divider"
+        app:strokeWidth="1dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:padding="12dp">
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="NokoPrint v5.27.0 Premium"
+                    android:textColor="@color/text_primary"
+                    android:textSize="14.5sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:text="Driver Universal NokoPrint Thermal &amp; Wi-Fi"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="12sp" />
+
+            </LinearLayout>
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnDownloadNokoPrint"
                 style="@style/Widget.Material3.Button.TonalButton"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
