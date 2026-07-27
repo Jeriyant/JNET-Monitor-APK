@@ -13,7 +13,7 @@
         android:layout_width="match_parent"
         android:layout_height="42dp"
         android:minHeight="42dp"
-        android:background="@color/primary"
+        android:background="@color/toolbar_bg"
         android:elevation="2dp"
         app:title="@string/toolbar_title"
         app:titleCentered="false"

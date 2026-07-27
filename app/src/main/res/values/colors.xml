@@ -1,11 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="primary">#0F172A</color>
-    <color name="primary_variant">#1E293B</color>
+    <color name="primary">#1E293B</color>
+    <color name="primary_variant">#0F172A</color>
     <color name="accent">#2563EB</color>
     <color name="accent_light">#3B82F6</color>
     
-    <color name="surface_dark">#0F172A</color>
+    <color name="toolbar_bg">#1E293B</color>
+    <color name="surface_dark">#090D16</color>
     <color name="surface_light">#F8FAFC</color>
     <color name="card_background">#FFFFFF</color>
     

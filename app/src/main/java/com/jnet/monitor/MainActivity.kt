@@ -32,6 +32,7 @@ import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.app.AppCompatDelegate
 import androidx.appcompat.view.menu.MenuBuilder
 import androidx.core.content.ContextCompat
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
@@ -77,6 +78,8 @@ class MainActivity : AppCompatActivity() {
     ) { _ -> }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        // Enforce system-wide Night / Day Mode compliance
+        AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM)
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
@@ -113,6 +116,9 @@ class MainActivity : AppCompatActivity() {
     private fun setupToolbar() {
         setSupportActionBar(binding.toolbar)
         supportActionBar?.title = getString(R.string.toolbar_title)
+        
+        // Dynamically set status bar color to match top bar
+        window.statusBarColor = ContextCompat.getColor(this, R.color.toolbar_bg)
     }
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -130,7 +136,16 @@ class MainActivity : AppCompatActivity() {
             useWideViewPort = false // Match Chrome Mobile Viewport
             setSupportMultipleWindows(true)
             javaScriptCanOpenWindowsAutomatically = true
-            userAgentString = userAgentString + " JNETMonitorApp/2.7"
+            userAgentString = userAgentString + " JNETMonitorApp/2.8"
+        }
+
+        // Native Android Force Dark Mode for WebView content if system is in Dark Mode
+        val isNight = (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            try {
+                @Suppress("DEPRECATION")
+                webSettings.forceDark = if (isNight) WebSettings.FORCE_DARK_ON else WebSettings.FORCE_DARK_OFF
+            } catch (e: Exception) {}
         }
     }
 
@@ -681,7 +696,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     // ==========================================
-    // 3-Dot Menu (with Icons enabled)
+    // 3-Dot Menu (with Icons enabled & styled)
     // ==========================================
 
     @SuppressLint("RestrictedApi")
@@ -807,8 +822,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun getCurrentVersion() = try {
-        packageManager.getPackageInfo(packageName, 0).versionName ?: "2.7.0"
-    } catch (e: Exception) { "2.7.0" }
+        packageManager.getPackageInfo(packageName, 0).versionName ?: "2.8.0"
+    } catch (e: Exception) { "2.8.0" }
 
     private fun cleanVersion(v: String) = v.trim().trimStart('v', 'V')
 
