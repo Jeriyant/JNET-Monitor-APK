@@ -83,10 +83,10 @@ class MainActivity : AppCompatActivity() {
             builtInZoomControls = true
             displayZoomControls = false
             loadWithOverviewMode = true
-            useWideViewPort = false // Disabled wide viewport so window.innerWidth matches mobile screen (w < 800), exactly like Chrome Mobile!
+            useWideViewPort = false // Match Chrome Mobile Viewport (window.innerWidth < 800)
             setSupportMultipleWindows(true)
             javaScriptCanOpenWindowsAutomatically = true
-            userAgentString = userAgentString + " JNETMonitorApp/1.9"
+            userAgentString = userAgentString + " JNETMonitorApp/2.0"
         }
     }
 
@@ -109,7 +109,7 @@ class MainActivity : AppCompatActivity() {
 
             override fun onReceivedTitle(view: WebView?, title: String?) {
                 super.onReceivedTitle(view, title)
-                // Subtitle removed as per user request
+                // Subtitle removed
             }
 
             override fun onCreateWindow(
@@ -220,7 +220,21 @@ class MainActivity : AppCompatActivity() {
         window.print._jnetBridge = true;
     }
 
-    // 2. Intercept window.location.href setter for intent://, quickprinter:, rawbt:
+    // 2. Observe and hook sendToQuickPrinterChrome
+    var checkSendToQuickPrinter = function() {
+        if (typeof window.sendToQuickPrinterChrome === 'function' && !window.sendToQuickPrinterChrome._patched) {
+            var origFn = window.sendToQuickPrinterChrome;
+            window.sendToQuickPrinterChrome = function() {
+                try {
+                    origFn();
+                } catch(e) {}
+            };
+            window.sendToQuickPrinterChrome._patched = true;
+        }
+    };
+    setInterval(checkSendToQuickPrinter, 300);
+
+    // 3. Intercept window.location.href setter for intent://, quickprinter:, rawbt:
     if (!window._jnetLocationPatched) {
         try {
             var _locProto = window.location;
@@ -253,7 +267,7 @@ class MainActivity : AppCompatActivity() {
         } catch(e) {}
     }
 
-    // 3. Patch jQuery AJAX headers to send X-Requested-With: XMLHttpRequest
+    // 4. Patch jQuery AJAX headers to send X-Requested-With: XMLHttpRequest
     if (window.jQuery) {
         window.jQuery.ajaxSetup({
             headers: { 'X-Requested-With': 'XMLHttpRequest' }
@@ -283,38 +297,68 @@ class MainActivity : AppCompatActivity() {
         return launchIntent(url, targetWebView)
     }
 
-    fun launchIntent(url: String, targetWebView: WebView?): Boolean {
-        if (url.startsWith("intent://") || url.contains("scheme=quickprinter") || url.contains("package=$QUICKPRINTER_PACKAGE")) {
-            // Method 1: Try standard Intent.parseUri
-            try {
-                val intent = Intent.parseUri(url, Intent.URI_INTENT_SCHEME)
-                intent.addCategory(Intent.CATEGORY_BROWSABLE)
-                intent.setComponent(null)
-                intent.setSelector(null)
-                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    /**
+     * Replicates Chrome's GURL C++ engine URL cleaning:
+     * Percent-encodes spaces, newlines, and special characters before creating Intent.
+     */
+    private fun cleanAndParseQuickPrinterIntent(url: String): Intent? {
+        try {
+            val prefix = "intent://"
+            val suffix = "#Intent;"
 
-                startActivity(intent)
-                return true
-            } catch (e: Exception) {}
-
-            // Method 2: Manual Uri construction for QuickPrinter (quickprinter://<encodedData>)
-            try {
-                val prefix = "intent://"
-                val suffix = "#Intent;"
-                val startIndex = url.indexOf(prefix)
-                val endIndex = url.lastIndexOf(suffix)
-                val dataString = if (startIndex != -1 && endIndex > startIndex) {
-                    url.substring(startIndex + prefix.length, endIndex)
+            var payload = ""
+            if (url.startsWith(prefix)) {
+                val hashIndex = url.indexOf(suffix)
+                if (hashIndex != -1) {
+                    payload = url.substring(prefix.length, hashIndex)
                 } else {
-                    url.replace("intent://", "").replace("#Intent;.*".toRegex(), "")
+                    payload = url.substring(prefix.length)
                 }
+            } else if (url.startsWith("quickprinter://")) {
+                payload = url.substring("quickprinter://".length)
+            } else {
+                payload = url
+            }
 
-                val qpIntent = Intent(Intent.ACTION_VIEW, Uri.parse("quickprinter://$dataString")).apply {
-                    setPackage(QUICKPRINTER_PACKAGE)
+            // Percent-encode spaces, newlines, and special characters like Chrome does
+            val cleanedPayload = payload
+                .replace("\r\n", "\n")
+                .replace(" ", "%20")
+                .replace("\n", "%0A")
+                .replace("<", "%3C")
+                .replace(">", "%3E")
+                .replace("\"", "%22")
+
+            val uri = Uri.parse("quickprinter://$cleanedPayload")
+            return Intent(Intent.ACTION_VIEW, uri).apply {
+                setPackage(QUICKPRINTER_PACKAGE)
+                addCategory(Intent.CATEGORY_BROWSABLE)
+                addCategory(Intent.CATEGORY_DEFAULT)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+        } catch (e: Exception) {
+            return null
+        }
+    }
+
+    fun launchIntent(url: String, targetWebView: WebView?): Boolean {
+        if (url.startsWith("intent://") || url.contains("scheme=quickprinter") || url.contains("package=$QUICKPRINTER_PACKAGE") || url.startsWith("quickprinter:")) {
+            // Method 1: Try cleaned QuickPrinter intent with Chrome-style encoding
+            val qpIntent = cleanAndParseQuickPrinterIntent(url)
+            if (qpIntent != null) {
+                try {
+                    startActivity(qpIntent)
+                    return true
+                } catch (e: Exception) {}
+            }
+
+            // Method 2: Try standard Intent.parseUri
+            try {
+                val intent = Intent.parseUri(url, Intent.URI_INTENT_SCHEME).apply {
                     addCategory(Intent.CATEGORY_BROWSABLE)
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 }
-                startActivity(qpIntent)
+                startActivity(intent)
                 return true
             } catch (e: Exception) {}
 
@@ -334,7 +378,7 @@ class MainActivity : AppCompatActivity() {
             return true
         }
 
-        if (url.startsWith("rawbt:") || url.startsWith("quickprinter:")) {
+        if (url.startsWith("rawbt:")) {
             return try {
                 startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -346,7 +390,7 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // External apps (tel:, mailto:, whatsapp:, etc.)
+        // External apps
         return try {
             startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -529,8 +573,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun getCurrentVersion() = try {
-        packageManager.getPackageInfo(packageName, 0).versionName ?: "1.9.0"
-    } catch (e: Exception) { "1.9.0" }
+        packageManager.getPackageInfo(packageName, 0).versionName ?: "2.0.0"
+    } catch (e: Exception) { "2.0.0" }
 
     private fun cleanVersion(v: String) = v.trim().trimStart('v', 'V')
 
