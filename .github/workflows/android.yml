@@ -1,8 +1,10 @@
-name: Build Android APK
+name: Build & Release Android APK
 
 on:
   push:
     branches: [ "master", "main" ]
+    tags:
+      - 'v*'
   pull_request:
     branches: [ "master", "main" ]
   workflow_dispatch:
@@ -24,17 +26,36 @@ jobs:
     - name: Setup Gradle
       uses: gradle/actions/setup-gradle@v3
 
-    - name: Generate Gradle 8.5 Wrapper
-      run: gradle wrapper --gradle-version 8.5
-
     - name: Grant execute permission for gradlew
       run: chmod +x gradlew
 
-    - name: Build Debug APK
+    - name: Build Debug & Release APK
       run: ./gradlew assembleDebug --no-daemon
+
+    - name: Prepare APK Artifact
+      run: |
+        mkdir -p release_apk
+        cp app/build/outputs/apk/debug/app-debug.apk release_apk/JNET-MONITOR-v3.0.0.apk
 
     - name: Upload APK Artifact
       uses: actions/upload-artifact@v4
       with:
-        name: JNET-Monitor-v1.0-debug.apk
-        path: app/build/outputs/apk/debug/app-debug.apk
+        name: JNET-MONITOR-v3.0.0.apk
+        path: release_apk/JNET-MONITOR-v3.0.0.apk
+
+    - name: Create GitHub Release
+      if: startsWith(github.ref, 'refs/tags/')
+      uses: softprops/action-gh-release@v2
+      with:
+        files: release_apk/JNET-MONITOR-v3.0.0.apk
+        name: JNET-MONITOR-APK v3.0.0
+        body: |
+          ### 🚀 Pembaruan JNET-MONITOR-APK v3.0.0
+
+          - 🖨️ **Fix Handler Download Aplikasi/Driver**: Menambahkan `DownloadListener` & `DownloadManager` native agar pengunduhan dari WebView dan menu Driver Printer berjalan langsung ke folder Downloads HP dengan notifikasi progress.
+          - 🌐 **Deteksi Format Berkas Otomatis**: Pengunduhan berkas `.apk`, `.zip`, `.pdf`, `.rar` otomatis ditangani oleh sistem Android.
+          - 🌗 **Pembaruan Stabilitas & Tema**: Performa navigasi browser lebih lancar dan responsif.
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

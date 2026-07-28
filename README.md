@@ -139,6 +139,7 @@ Output APK: `app/build/outputs/apk/debug/app-debug.apk`
 
 | Versi | Perubahan |
 |---|---|
+| **v3.0.0** | Handler Download Aplikasi/Driver (`DownloadManager` & `DownloadListener` native) |
 | **v2.9.0** | Handler tab baru (`window.open`, `target="_blank"`) anti-crash |
 | **v2.8.0** | Ikon menu seragam + Dark Mode menyeluruh (Toolbar, Status Bar, WebView) |
 | **v2.7.0** | Ikon visual di menu + NokoPrint Premium v5.27.0 |

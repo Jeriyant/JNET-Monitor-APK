@@ -136,7 +136,7 @@ class MainActivity : AppCompatActivity() {
             useWideViewPort = false // Match Chrome Mobile Viewport
             setSupportMultipleWindows(true)
             javaScriptCanOpenWindowsAutomatically = true
-            userAgentString = userAgentString + " JNETMonitorApp/2.9"
+            userAgentString = userAgentString + " JNETMonitorApp/3.0"
         }
 
         // Native Android Force Dark Mode for WebView content if system is in Dark Mode
@@ -201,15 +201,19 @@ class MainActivity : AppCompatActivity() {
                         WebAppInterface(this@MainActivity, binding.webView), JS_PRINT_INTERFACE
                     )
 
+                    popupWebView.setDownloadListener { url, userAgent, contentDisposition, mimetype, _ ->
+                        handleDownload(url, userAgent, contentDisposition, mimetype)
+                    }
+
                     popupWebView.webViewClient = object : WebViewClient() {
                         @Suppress("OVERRIDE_DEPRECATION")
                         override fun shouldOverrideUrlLoading(v: WebView?, targetUrl: String?): Boolean {
                             if (!targetUrl.isNullOrEmpty()) {
-                                if (targetUrl.startsWith("http://") || targetUrl.startsWith("https://")) {
-                                    binding.webView.loadUrl(targetUrl)
-                                } else {
-                                    dispatchUrl(targetUrl, binding.webView)
+                                if (dispatchUrl(targetUrl, binding.webView)) {
+                                    try { v?.destroy() } catch (e: Exception) {}
+                                    return true
                                 }
+                                binding.webView.loadUrl(targetUrl)
                             }
                             try { v?.destroy() } catch (e: Exception) {}
                             return true
@@ -218,11 +222,11 @@ class MainActivity : AppCompatActivity() {
                         override fun shouldOverrideUrlLoading(v: WebView?, request: WebResourceRequest?): Boolean {
                             val targetUrl = request?.url?.toString()
                             if (!targetUrl.isNullOrEmpty()) {
-                                if (targetUrl.startsWith("http://") || targetUrl.startsWith("https://")) {
-                                    binding.webView.loadUrl(targetUrl)
-                                } else {
-                                    dispatchUrl(targetUrl, binding.webView)
+                                if (dispatchUrl(targetUrl, binding.webView)) {
+                                    try { v?.destroy() } catch (e: Exception) {}
+                                    return true
                                 }
+                                binding.webView.loadUrl(targetUrl)
                             }
                             try { v?.destroy() } catch (e: Exception) {}
                             return true
@@ -255,6 +259,10 @@ class MainActivity : AppCompatActivity() {
                 }
                 return false
             }
+        }
+
+        binding.webView.setDownloadListener { url, userAgent, contentDisposition, mimetype, _ ->
+            handleDownload(url, userAgent, contentDisposition, mimetype)
         }
 
         binding.webView.webViewClient = object : WebViewClient() {
@@ -436,8 +444,48 @@ class MainActivity : AppCompatActivity() {
 
     fun dispatchUrl(url: String, targetWebView: WebView?): Boolean {
         if (url.isEmpty()) return false
+
+        // Handle direct file download links (.apk, .zip, .rar, .pdf, .7z)
+        val lower = url.lowercase(Locale.getDefault())
+        if (lower.endsWith(".apk") || lower.endsWith(".zip") || lower.endsWith(".rar") || lower.endsWith(".pdf") || lower.endsWith(".7z") || lower.contains(".apk?")) {
+            handleDownload(url)
+            return true
+        }
+
         if (url.startsWith("http://") || url.startsWith("https://")) return false
         return launchIntent(url, targetWebView)
+    }
+
+    private fun handleDownload(
+        url: String,
+        userAgent: String? = null,
+        contentDisposition: String? = null,
+        mimetype: String? = null
+    ) {
+        if (url.isEmpty()) return
+        try {
+            val request = android.app.DownloadManager.Request(Uri.parse(url)).apply {
+                if (!mimetype.isNullOrEmpty()) setMimeType(mimetype)
+                if (!userAgent.isNullOrEmpty()) addRequestHeader("User-Agent", userAgent)
+                setDescription("Mengunduh berkas...")
+                val filename = android.webkit.URLUtil.guessFileName(url, contentDisposition, mimetype)
+                setTitle(filename)
+                setNotificationVisibility(android.app.DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+                setDestinationInExternalPublicDir(android.os.Environment.DIRECTORY_DOWNLOADS, filename)
+            }
+            val dm = getSystemService(Context.DOWNLOAD_SERVICE) as android.app.DownloadManager
+            dm.enqueue(request)
+            Toast.makeText(applicationContext, "Mengunduh berkas...", Toast.LENGTH_LONG).show()
+        } catch (e: Exception) {
+            // Fallback: Open in external system browser
+            try {
+                startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                })
+            } catch (err: Exception) {
+                Toast.makeText(applicationContext, "Gagal mengunduh berkas: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
+            }
+        }
     }
 
     fun launchIntent(url: String, targetWebView: WebView?): Boolean {
@@ -642,13 +690,7 @@ class MainActivity : AppCompatActivity() {
     // ==========================================
 
     private fun openExternalDownload(url: String) {
-        try {
-            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            })
-        } catch (e: Exception) {
-            Toast.makeText(this, "Gagal membuka link unduhan", Toast.LENGTH_SHORT).show()
-        }
+        handleDownload(url)
     }
 
     private fun showPrinterDriverDialog() {
