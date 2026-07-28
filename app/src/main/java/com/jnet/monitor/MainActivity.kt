@@ -136,7 +136,7 @@ class MainActivity : AppCompatActivity() {
             useWideViewPort = false // Match Chrome Mobile Viewport
             setSupportMultipleWindows(true)
             javaScriptCanOpenWindowsAutomatically = true
-            userAgentString = userAgentString + " JNETMonitorApp/3.0"
+            userAgentString = userAgentString + " JNETMonitorApp/3.2"
         }
 
         // Native Android Force Dark Mode for WebView content if system is in Dark Mode
