@@ -172,6 +172,14 @@ class MainActivity : AppCompatActivity() {
                 }
             }
 
+            override fun onReceivedIcon(view: WebView?, icon: android.graphics.Bitmap?) {
+                super.onReceivedIcon(view, icon)
+                val targetUrl = view?.url ?: return
+                if (icon != null) {
+                    saveToHistory(view.title ?: targetUrl, targetUrl, icon)
+                }
+            }
+
             /**
              * Robust, Crash-Proof New Tab / Popup Window Handler
              */
@@ -285,7 +293,7 @@ class MainActivity : AppCompatActivity() {
                 super.onPageFinished(view, url)
                 binding.swipeRefreshLayout.isRefreshing = false
                 injectBridgeScript(view)
-                if (url != null) saveToHistory(view?.title ?: url, url)
+                if (url != null) saveToHistory(view?.title ?: url, url, view?.favicon)
                 if (isPrintPage(url)) printWebPage(view)
             }
 
@@ -590,24 +598,54 @@ class MainActivity : AppCompatActivity() {
     // History Feature
     // ==========================================
 
-    data class HistoryItem(val title: String, val url: String, val timestamp: String)
+    // ==========================================
+    // History Feature
+    // ==========================================
 
-    private fun saveToHistory(title: String, url: String) {
+    data class HistoryItem(val title: String, val url: String, val timestamp: String, val faviconBase64: String = "")
+
+    private fun bitmapToBase64(bitmap: android.graphics.Bitmap): String {
+        return try {
+            val baos = java.io.ByteArrayOutputStream()
+            bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 80, baos)
+            val b = baos.toByteArray()
+            android.util.Base64.encodeToString(b, android.util.Base64.NO_WRAP)
+        } catch (e: Exception) { "" }
+    }
+
+    private fun base64ToBitmap(base64Str: String): android.graphics.Bitmap? {
+        return try {
+            val decodedBytes = android.util.Base64.decode(base64Str, android.util.Base64.NO_WRAP)
+            android.graphics.BitmapFactory.decodeByteArray(decodedBytes, 0, decodedBytes.size)
+        } catch (e: Exception) { null }
+    }
+
+    private fun saveToHistory(title: String, url: String, faviconBitmap: android.graphics.Bitmap? = null) {
         if (url.isEmpty() || url.startsWith("about:") || url.startsWith("data:")) return
         try {
             val historyJson = prefs.getString(KEY_HISTORY_JSON, "[]") ?: "[]"
             val array = JSONArray(historyJson)
             val time = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault()).format(Date())
 
+            val iconStr = faviconBitmap?.let { bitmapToBase64(it) } ?: ""
+
             if (array.length() > 0) {
                 val lastObj = array.getJSONObject(0)
-                if (lastObj.optString("url") == url) return
+                if (lastObj.optString("url") == url) {
+                    if (iconStr.isNotEmpty() && lastObj.optString("favicon").isEmpty()) {
+                        lastObj.put("favicon", iconStr)
+                        if (title.isNotEmpty()) lastObj.put("title", title)
+                        prefs.edit().putString(KEY_HISTORY_JSON, array.toString()).apply()
+                    }
+                    return
+                }
             }
 
             val newObj = JSONObject().apply {
                 put("title", title.ifEmpty { url })
                 put("url", url)
                 put("time", time)
+                if (iconStr.isNotEmpty()) put("favicon", iconStr)
             }
 
             val newArray = JSONArray()
@@ -630,7 +668,8 @@ class MainActivity : AppCompatActivity() {
                 list.add(HistoryItem(
                     title = obj.optString("title", "Halaman Web"),
                     url = obj.optString("url", ""),
-                    timestamp = obj.optString("time", "")
+                    timestamp = obj.optString("time", ""),
+                    faviconBase64 = obj.optString("favicon", "")
                 ))
             }
         } catch (e: Exception) {}
@@ -653,6 +692,7 @@ class MainActivity : AppCompatActivity() {
                 val view = convertView ?: LayoutInflater.from(context).inflate(R.layout.item_history, parent, false)
                 val item = getItem(position) ?: return view
 
+                val ivIcon = view.findViewById<android.widget.ImageView>(R.id.ivHistoryIcon)
                 val tvTitle = view.findViewById<TextView>(R.id.tvHistoryTitle)
                 val tvUrl = view.findViewById<TextView>(R.id.tvHistoryUrl)
                 val tvTime = view.findViewById<TextView>(R.id.tvHistoryTime)
@@ -660,6 +700,20 @@ class MainActivity : AppCompatActivity() {
                 tvTitle.text = item.title
                 tvUrl.text = item.url
                 tvTime.text = item.timestamp
+
+                if (item.faviconBase64.isNotEmpty()) {
+                    val bmp = base64ToBitmap(item.faviconBase64)
+                    if (bmp != null) {
+                        ivIcon.setImageBitmap(bmp)
+                        ivIcon.clearColorFilter()
+                    } else {
+                        ivIcon.setImageResource(R.drawable.ic_history)
+                        ivIcon.setColorFilter(ContextCompat.getColor(context, R.color.accent))
+                    }
+                } else {
+                    ivIcon.setImageResource(R.drawable.ic_history)
+                    ivIcon.setColorFilter(ContextCompat.getColor(context, R.color.accent))
+                }
 
                 return view
             }
