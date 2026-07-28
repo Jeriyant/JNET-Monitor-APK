@@ -1,6 +1,6 @@
 <resources>
     <string name="app_name">JNET-MONITOR</string>
-    <string name="toolbar_title">JNET-MONITOR v.3.3.1</string>
+    <string name="toolbar_title">JNET-MONITOR v.3.3.2</string>
     
     <!-- Menu Items -->
     <string name="menu_reload">Muat Ulang</string>
@@ -14,7 +14,7 @@
 
     <!-- Update Strings -->
     <string name="update_checking">Memeriksa pembaruan...</string>
-    <string name="update_available_title">Pembaruan Wajib Tersedia!</string>
+    <string name="update_available_title">Pembaruan</string>
     <string name="update_latest_title">Aplikasi Sudah Terbaru</string>
     <string name="update_latest_msg">Anda menggunakan JNET-MONITOR versi terbaru.</string>
     <string name="update_btn_download">Update Sekarang</string>

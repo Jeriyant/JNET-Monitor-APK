@@ -35,26 +35,27 @@ jobs:
     - name: Prepare APK Artifact
       run: |
         mkdir -p release_apk
-        cp app/build/outputs/apk/debug/app-debug.apk release_apk/JNET-MONITOR-v3.3.1.apk
+        cp app/build/outputs/apk/debug/app-debug.apk release_apk/JNET-MONITOR-v3.3.2.apk
 
     - name: Upload APK Artifact
       uses: actions/upload-artifact@v4
       with:
-        name: JNET-MONITOR-v3.3.1.apk
-        path: release_apk/JNET-MONITOR-v3.3.1.apk
+        name: JNET-MONITOR-v3.3.2.apk
+        path: release_apk/JNET-MONITOR-v3.3.2.apk
 
     - name: Create GitHub Release
       if: startsWith(github.ref, 'refs/tags/')
       uses: softprops/action-gh-release@v2
       with:
-        files: release_apk/JNET-MONITOR-v3.3.1.apk
-        name: JNET-MONITOR-APK v3.3.1
+        files: release_apk/JNET-MONITOR-v3.3.2.apk
+        name: JNET-MONITOR-APK v3.3.2
         body: |
-          ### 🚀 Pembaruan JNET-MONITOR-APK v3.3.1
+          ### 🚀 Pembaruan JNET-MONITOR-APK v3.3.2
 
-          - 🎨 **Fix Warna Asli Favicon Halaman**: Menghapus pewarnaan tint masking XML agar ikon favicon pada riwayat browser tampil dalam warna asli bawaan masing-masing situs web.
+          - 📢 **Format Judul Modal Update**: Judul modal pembaruan kini disederhanakan menjadi `Pembaruan (v3.3.2)`.
+          - 🎨 **Fix Warna Asli Favicon Halaman**: Favicon situs web tampil dalam warna-warni asli pada riwayat browser.
           - 📜 **Kapasitas Riwayat Tanpa Batas (*Unlimited*)**: Tersimpan otomatis hingga pengguna menekan tombol Hapus Riwayat.
-          - 🏷️ **Versi Head Bar**: Toolbar atas diperbarui menjadi `JNET-MONITOR v.3.3.1`.
+          - 🏷️ **Versi Head Bar**: Toolbar atas diperbarui menjadi `JNET-MONITOR v.3.3.2`.
         draft: false
         prerelease: false
       env:

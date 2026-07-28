@@ -139,6 +139,7 @@ Output APK: `app/build/outputs/apk/debug/app-debug.apk`
 
 | Versi | Perubahan |
 |---|---|
+| **v3.3.2** | Format Judul Dialog Pembaruan Disederhanakan (`Pembaruan (v3.3.2)`) |
 | **v3.3.1** | Fix Warna Asli Favicon Halaman Web pada Riwayat Browser (Menghapus Tint Masking XML) |
 | **v3.3.0** | Kapasitas Riwayat Browser Tanpa Batas (*Unlimited*), Ikon Visual Riwayat, & Rilis Resmi |
 | **v3.2.0** | Perataan versi Toolbar (`JNET-MONITOR v.3.2.0`), High-Tech Branding Badge `JERIYANT - BARAMCITY`, & penataan tampilan deskripsi |
