@@ -17,7 +17,7 @@
     <string name="update_available_title">Pembaruan Wajib Tersedia!</string>
     <string name="update_latest_title">Aplikasi Sudah Terbaru</string>
     <string name="update_latest_msg">Anda menggunakan JNET-MONITOR versi terbaru.</string>
-    <string name="update_btn_download">Unduh Update Sekarang</string>
+    <string name="update_btn_download">Update Sekarang</string>
     <string name="update_error">Gagal memeriksa pembaruan. Periksa koneksi internet.</string>
 
     <!-- Settings Dialog -->

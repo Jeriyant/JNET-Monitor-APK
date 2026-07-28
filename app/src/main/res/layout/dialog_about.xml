@@ -84,12 +84,15 @@
 
     <com.google.android.material.button.MaterialButton
         android:id="@+id/btnCheckUpdateAbout"
-        style="@style/Widget.Material3.Button.TonalButton"
+        style="@style/Widget.Material3.Button.OutlinedButton"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="18dp"
         android:text="@string/menu_check_update"
         android:textColor="@color/accent"
+        app:strokeColor="@color/accent"
+        app:strokeWidth="1.5dp"
+        app:cornerRadius="12dp"
         app:icon="@drawable/ic_update"
         app:iconTint="@color/accent" />
 

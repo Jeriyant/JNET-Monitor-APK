@@ -928,7 +928,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showUpdateDialog(ver: String, notes: String, url: String) {
-        MaterialAlertDialogBuilder(this)
+        val dialog = MaterialAlertDialogBuilder(this)
             .setTitle("${getString(R.string.update_available_title)} (v$ver)")
             .setMessage("Catatan Rilis:\n\n$notes\n\n⚠️ Pembaruan ini Wajib untuk melanjutkan penggunaan aplikasi.")
             .setCancelable(false)
@@ -936,7 +936,14 @@ class MainActivity : AppCompatActivity() {
                 startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
                 finish()
             }
-            .show()
+            .create()
+
+        dialog.show()
+
+        dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE)?.let { btn ->
+            btn.background = ContextCompat.getDrawable(this, R.drawable.bg_framed_button)
+            btn.setTextColor(ContextCompat.getColor(this, R.color.accent))
+        }
     }
 
     private fun showLatestDialog(ver: String) {
