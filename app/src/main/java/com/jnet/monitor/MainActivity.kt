@@ -136,7 +136,7 @@ class MainActivity : AppCompatActivity() {
             useWideViewPort = false // Match Chrome Mobile Viewport
             setSupportMultipleWindows(true)
             javaScriptCanOpenWindowsAutomatically = true
-            userAgentString = userAgentString + " JNETMonitorApp/3.3"
+            userAgentString = userAgentString + " JNETMonitorApp/3.3.1"
         }
 
         // Native Android Force Dark Mode for WebView content if system is in Dark Mode
@@ -705,14 +705,21 @@ class MainActivity : AppCompatActivity() {
                     val bmp = base64ToBitmap(item.faviconBase64)
                     if (bmp != null) {
                         ivIcon.setImageBitmap(bmp)
-                        ivIcon.clearColorFilter()
+                        ivIcon.colorFilter = null
+                        androidx.core.widget.ImageViewCompat.setImageTintList(ivIcon, null)
                     } else {
                         ivIcon.setImageResource(R.drawable.ic_history)
-                        ivIcon.setColorFilter(ContextCompat.getColor(context, R.color.accent))
+                        androidx.core.widget.ImageViewCompat.setImageTintList(
+                            ivIcon,
+                            android.content.res.ColorStateList.valueOf(ContextCompat.getColor(context, R.color.accent))
+                        )
                     }
                 } else {
                     ivIcon.setImageResource(R.drawable.ic_history)
-                    ivIcon.setColorFilter(ContextCompat.getColor(context, R.color.accent))
+                    androidx.core.widget.ImageViewCompat.setImageTintList(
+                        ivIcon,
+                        android.content.res.ColorStateList.valueOf(ContextCompat.getColor(context, R.color.accent))
+                    )
                 }
 
                 return view

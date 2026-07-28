@@ -15,7 +15,6 @@
         android:layout_height="24dp"
         android:layout_marginEnd="12dp"
         android:src="@drawable/ic_history"
-        app:tint="@color/accent"
         android:contentDescription="@string/menu_history" />
 
     <LinearLayout
