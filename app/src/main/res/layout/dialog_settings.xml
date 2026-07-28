@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
@@ -30,7 +31,8 @@
             android:layout_height="wrap_content"
             android:inputType="textUri"
             android:maxLines="2"
-            android:textColor="@color/text_primary" />
+            android:textColor="@color/text_primary"
+            tools:text="https://jeriyant.my.id" />
 
     </com.google.android.material.textfield.TextInputLayout>
 
@@ -41,7 +43,8 @@
         android:layout_marginTop="8dp"
         android:textSize="12sp"
         android:textColor="@color/text_secondary"
-        android:text="URL Saat Ini: -" />
+        android:text="URL Saat Ini: -"
+        tools:text="URL Saat Ini: https://jeriyant.my.id" />
 
     <com.google.android.material.button.MaterialButton
         android:id="@+id/btnSetCurrentUrl"
