@@ -35,27 +35,27 @@ jobs:
     - name: Prepare APK Artifact
       run: |
         mkdir -p release_apk
-        cp app/build/outputs/apk/debug/app-debug.apk release_apk/JNET-MONITOR-v3.2.0.apk
+        cp app/build/outputs/apk/debug/app-debug.apk release_apk/JNET-MONITOR-v3.3.0.apk
 
     - name: Upload APK Artifact
       uses: actions/upload-artifact@v4
       with:
-        name: JNET-MONITOR-v3.2.0.apk
-        path: release_apk/JNET-MONITOR-v3.2.0.apk
+        name: JNET-MONITOR-v3.3.0.apk
+        path: release_apk/JNET-MONITOR-v3.3.0.apk
 
     - name: Create GitHub Release
       if: startsWith(github.ref, 'refs/tags/')
       uses: softprops/action-gh-release@v2
       with:
-        files: release_apk/JNET-MONITOR-v3.2.0.apk
-        name: JNET-MONITOR-APK v3.2.0
+        files: release_apk/JNET-MONITOR-v3.3.0.apk
+        name: JNET-MONITOR-APK v3.3.0
         body: |
-          ### 🚀 Pembaruan JNET-MONITOR-APK v3.2.0
+          ### 🚀 Pembaruan JNET-MONITOR-APK v3.3.0
 
-          - 🏷️ **Versi Head Bar**: Penyesuaian judul toolbar menjadi `JNET-MONITOR v.3.2.0`.
+          - 📜 **Kapasitas Riwayat Tanpa Batas (*Unlimited*)**: Riwayat tersimpan tanpa dibatasi (hanya terhapus saat menekan tombol Hapus Riwayat).
+          - 🎨 **Ikon Visual Riwayat**: Ikon riwayat interaktif pada daftar halaman yang pernah dikunjungi.
+          - 🏷️ **Versi Head Bar**: Toolbar atas diperbarui menjadi `JNET-MONITOR v.3.3.0`.
           - ⚡ **High-Tech Branding Badge**: Badge kreator `JERIYANT - BARAMCITY` terpusat dengan style futuristik kerning & border aksen glow.
-          - 📄 **Penataan Deskripsi**: Tampilan menu Tentang Aplikasi dibuat jauh lebih rapi & terstruktur.
-          - 🖨️ **Native Download Manager**: Integrasi penuh `DownloadListener` & `DownloadManager` untuk pengunduhan driver/aplikasi.
         draft: false
         prerelease: false
       env:

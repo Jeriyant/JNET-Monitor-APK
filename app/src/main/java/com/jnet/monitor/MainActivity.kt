@@ -136,7 +136,7 @@ class MainActivity : AppCompatActivity() {
             useWideViewPort = false // Match Chrome Mobile Viewport
             setSupportMultipleWindows(true)
             javaScriptCanOpenWindowsAutomatically = true
-            userAgentString = userAgentString + " JNETMonitorApp/3.2"
+            userAgentString = userAgentString + " JNETMonitorApp/3.3"
         }
 
         // Native Android Force Dark Mode for WebView content if system is in Dark Mode
@@ -612,7 +612,7 @@ class MainActivity : AppCompatActivity() {
 
             val newArray = JSONArray()
             newArray.put(newObj)
-            for (i in 0 until minOf(array.length(), MAX_HISTORY_ITEMS - 1)) {
+            for (i in 0 until array.length()) {
                 newArray.put(array.get(i))
             }
 

@@ -139,6 +139,7 @@ Output APK: `app/build/outputs/apk/debug/app-debug.apk`
 
 | Versi | Perubahan |
 |---|---|
+| **v3.3.0** | Kapasitas Riwayat Browser Tanpa Batas (*Unlimited*), Ikon Visual Riwayat, & Rilis Resmi |
 | **v3.2.0** | Perataan versi Toolbar (`JNET-MONITOR v.3.2.0`), High-Tech Branding Badge `JERIYANT - BARAMCITY`, & penataan tampilan deskripsi |
 | **v3.0.0** | Handler Download Aplikasi/Driver (`DownloadManager` & `DownloadListener` native) |
 | **v2.9.0** | Handler tab baru (`window.open`, `target="_blank"`) anti-crash |

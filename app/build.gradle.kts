@@ -11,8 +11,8 @@ android {
         applicationId = "com.jnet.monitor"
         minSdk = 24
         targetSdk = 34
-        versionCode = 22
-        versionName = "3.2.0"
+        versionCode = 23
+        versionName = "3.3.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
