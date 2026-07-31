@@ -88,7 +88,6 @@ class MainActivity : AppCompatActivity() {
 
         setupToolbar()
         setupWebView()
-        setupSwipeRefresh()
         setupBackPressedHandler()
         checkAndRequestPermissions()
 
@@ -136,7 +135,7 @@ class MainActivity : AppCompatActivity() {
             useWideViewPort = false // Match Chrome Mobile Viewport
             setSupportMultipleWindows(true)
             javaScriptCanOpenWindowsAutomatically = true
-            userAgentString = userAgentString + " JNETMonitorApp/3.3.2"
+            userAgentString = userAgentString + " JNETMonitorApp/3.4.0"
         }
 
         // Native Android Force Dark Mode for WebView content if system is in Dark Mode
@@ -291,7 +290,6 @@ class MainActivity : AppCompatActivity() {
 
             override fun onPageFinished(view: WebView?, url: String?) {
                 super.onPageFinished(view, url)
-                binding.swipeRefreshLayout.isRefreshing = false
                 injectBridgeScript(view)
                 if (url != null) saveToHistory(view?.title ?: url, url, view?.favicon)
                 if (isPrintPage(url)) printWebPage(view)
@@ -829,11 +827,6 @@ class MainActivity : AppCompatActivity() {
     // ==========================================
     // Setup helpers
     // ==========================================
-
-    private fun setupSwipeRefresh() {
-        binding.swipeRefreshLayout.setOnRefreshListener { binding.webView.reload() }
-        binding.swipeRefreshLayout.setColorSchemeResources(R.color.accent)
-    }
 
     private fun setupBackPressedHandler() {
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {

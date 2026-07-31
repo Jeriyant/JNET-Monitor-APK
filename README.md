@@ -139,6 +139,7 @@ Output APK: `app/build/outputs/apk/debug/app-debug.apk`
 
 | Versi | Perubahan |
 |---|---|
+| **v3.4.0** | Dihapus Fitur Tarik Refresh (*SwipeToRefresh*) untuk Navigasi Halaman Web Modern yang Lebih Murni & Stabil |
 | **v3.3.2** | Format Judul Dialog Pembaruan Disederhanakan (`Pembaruan (v3.3.2)`) |
 | **v3.3.1** | Fix Warna Asli Favicon Halaman Web pada Riwayat Browser (Menghapus Tint Masking XML) |
 | **v3.3.0** | Kapasitas Riwayat Browser Tanpa Batas (*Unlimited*), Ikon Visual Riwayat, & Rilis Resmi |
